@@ -1,0 +1,4 @@
+-R . "" Arith.v
+-R . "" Machine.v
+-R . "" Memory.v
+-R . "" Tactics.v 
