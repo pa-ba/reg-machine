@@ -37,7 +37,7 @@ Definition comp (x : Expr) : Code := comp' x 0 HALT.
 
 (** * Virtual Machine *)
 
-Inductive Conf : Set := conf : Code -> nat -> Mem -> Conf.
+Inductive Conf : Type := conf : Code -> nat -> Mem nat -> Conf.
 
 Notation "⟨ x , y , z ⟩" := (conf x y z).
 
