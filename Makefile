@@ -53,13 +53,16 @@ COQLIBS?=\
   -R "." ""\
   -R "." ""\
   -R "." ""\
+  -R "." ""\
   -R "." ""
 COQCHKLIBS?=\
   -R "." ""\
   -R "." ""\
   -R "." ""\
+  -R "." ""\
   -R "." ""
 COQDOCLIBS?=\
+  -R "." ""\
   -R "." ""\
   -R "." ""\
   -R "." ""\
@@ -106,6 +109,7 @@ endif
 ######################
 
 VFILES:=Arith.v\
+  Exception.v\
   Machine.v\
   Memory.v\
   Tactics.v

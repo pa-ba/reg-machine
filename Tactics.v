@@ -52,7 +52,7 @@ Ltac dist' ev := simpl; intros; subst; ev;
                   | [ H: ex _ |- _ ] => destruct H; dist' ev
                   | [ H: or _ _ |- _ ] => destruct H; dist' ev
                   | [ H: eq _ _ |- _ ] => rewrite H in *; dist' ev
-                  | [ |- and _ _ ] => split; dist' ev
+                  | [ |- and _ _ ] => split; repeat dist' ev
                   | [ |- _ <-> _ ] => split; dist' ev
                   | [ |- ex _ ] => eexists; dist' ev
                   | [ |- or _ _] => solve [right;dist' ev|left; dist' ev] 
@@ -127,7 +127,7 @@ Ltac Reach_search := first [apply Reach_step_simp | Reach_repeat].
 
 
 Tactic Notation  (at level 2)    "<==" "{" tactic(t) "}" constr(e) := 
-  <|= {{  Reach_search; intro; destruct_tuple; simpl; intros; [t;tauto | auto;tauto] }} e.
+  <|= {{  Reach_search; intro; destruct_tuple; simpl; intros; [t;dist | dist] }} e.
 
 Tactic Notation  (at level 2)  "begin" constr(rhs) :=
   match goal with
