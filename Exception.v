@@ -53,15 +53,17 @@ Fixpoint comp' (x : Expr) (r : nat) (c : Code) : Code :=
 
 Definition comp (x : Expr) : Code := comp' x 0 HALT.
 
+Definition Han := option adr.
+
 Inductive Elem : Set :=
 | NUM : nat -> Elem
-| HAN : Code -> adr -> Elem.
+| HAN : Code -> Han -> Elem.
 
 (** * Virtual Machine *)
 
 Inductive Conf : Type :=
-| conf : Code -> nat -> Mem Elem -> adr -> Conf
-| fail : Mem Elem -> adr -> Conf.
+| conf : Code -> nat -> Mem Elem -> Han -> Conf
+| fail : Mem Elem -> Han -> Conf.
 
 Notation "⟨ x , y , z , p ⟩" := (conf x y z p).
 Notation "⟪ x , y ⟫" := (fail x y).
@@ -72,9 +74,9 @@ Inductive VM : Conf -> Conf -> Prop :=
 | vm_add c s a r n p : get r s = NUM n -> ⟨ADD r c, a , s, p⟩ ==> ⟨c , n + a,  s, p⟩
 | vm_store c s a r p : ⟨STORE r c, a , s, p⟩ ==> ⟨c , a,  set r (NUM a) s, p⟩
 | vm_throw a s p : ⟨THROW, a , s, p⟩ ==> ⟪s, p⟫
-| vm_fail p p' s a c : get p s = HAN c p' -> ⟪s, p⟫ ==> ⟨c, a, s, p'⟩
-| vm_unmark p p' s a c c' : get p s = HAN c' p' -> ⟨UNMARK c, a, s, p⟩ ==> ⟨c, a, s, p'⟩
-| vm_mark p r s a c c' : ⟨MARK r c' c, a, s, p⟩ ==> ⟨c, a, set r (HAN c' p) s, r⟩
+| vm_fail p p' s c : get p s = HAN c p' -> ⟪s, Some p⟫ ==> ⟨c, 0, s, p'⟩
+| vm_unmark p p' s a c c' : get p s = HAN c' p' -> ⟨UNMARK c, a, s, Some p⟩ ==> ⟨c, a, s, p'⟩
+| vm_mark p r s a c c' : ⟨MARK r c' c, a, s, p⟩ ==> ⟨c, a, set r (HAN c' p) s, Some r⟩
 where "x ==> y" := (VM x y).
 
 (** * Calculation *)
@@ -211,24 +213,71 @@ Proof.
      ∪ {a s s', ⟨ comp' e2 r c, 0 , s', p ⟩ | s =[r] s' /\ get r s' = HAN (comp' e2 r c) p /\ P a s /\ eval e1 = None}).
   <== {apply vm_fail}
   ({a s s' n, ⟨ c, n, s', p ⟩ | s =[r] s' /\ get r s' = HAN (comp' e2 r c) p /\ P a s /\ eval e1 = Some n}
-     ∪ {a s s', ⟪ s', r ⟫ | s =[r] s' /\ get r s' = HAN (comp' e2 r c) p /\ P a s /\ eval e1 = None}).
+     ∪ {a s s', ⟪ s', Some r ⟫ | s =[r] s' /\ get r s' = HAN (comp' e2 r c) p /\ P a s /\ eval e1 = None}).
   ⊇ {lemma1}
   ({a s s' n, ⟨ c, n, s', p ⟩ | s =[r] s' /\ get r s' = HAN (comp' e2 r c) p /\ P a s /\ eval e1 = Some n}
-     ∪ {a s s', ⟪ s', r ⟫ | set r (HAN (comp' e2 r c) p) s =[r+1] s' /\ P a s /\ eval e1 = None}).
+     ∪ {a s s', ⟪ s', Some r ⟫ | set r (HAN (comp' e2 r c) p) s =[r+1] s' /\ P a s /\ eval e1 = None}).
   <== {eapply vm_unmark}
-  ({a s s' n, ⟨UNMARK c, n, s', r⟩ | s =[r] s' /\ get r s' = HAN (comp' e2 r c) p /\ P a s /\ eval e1 = Some n}
-     ∪ {a s s', ⟪ s', r⟫ | set r (HAN (comp' e2 r c) p) s =[r+1] s' /\ P a s /\ eval e1 = None}).
+  ({a s s' n, ⟨UNMARK c, n, s', Some r⟩ | s =[r] s' /\ get r s' = HAN (comp' e2 r c) p /\ P a s /\ eval e1 = Some n}
+     ∪ {a s s', ⟪ s', Some r⟫ | set r (HAN (comp' e2 r c) p) s =[r+1] s' /\ P a s /\ eval e1 = None}).
   ⊇ {lemma1}
-    ({a s s' n, ⟨UNMARK c, n, s', r⟩ | set r (HAN (comp' e2 r c) p) s =[r+1] s' /\ P a s /\ eval e1 = Some n}
-     ∪ {a s s', ⟪ s', r⟫ | set r (HAN (comp' e2 r c) p) s =[r+1] s' /\ P a s /\ eval e1 = None}).
+    ({a s s' n, ⟨UNMARK c, n, s', Some r⟩ | set r (HAN (comp' e2 r c) p) s =[r+1] s' /\ P a s /\ eval e1 = Some n}
+     ∪ {a s s', ⟪ s', Some r⟫ | set r (HAN (comp' e2 r c) p) s =[r+1] s' /\ P a s /\ eval e1 = None}).
   ⊇ {eauto}
-    ({a s'' s' n, ⟨UNMARK c, n, s', r⟩ | s'' =[r+1] s' /\ (exists s, set r (HAN (comp' e2 r c) p) s = s'' /\ P a s) /\ eval e1 = Some n}
-     ∪ {a s'' s', ⟪ s', r⟫ | s'' =[r+1] s' /\ (exists s, set r (HAN (comp' e2 r c) p) s = s'' /\ P a s) /\ eval e1 = None}).
+    ({a s'' s' n, ⟨UNMARK c, n, s', Some r⟩ | s'' =[r+1] s' /\ (exists s, set r (HAN (comp' e2 r c) p) s = s'' /\ P a s) /\ eval e1 = Some n}
+     ∪ {a s'' s', ⟪ s', Some r⟫ | s'' =[r+1] s' /\ (exists s, set r (HAN (comp' e2 r c) p) s = s'' /\ P a s) /\ eval e1 = None}).
   <|= {eapply IHe1}
-    ({a s'', ⟨comp' e1 (r+1) (UNMARK c), a , s'', r⟩ | exists s, set r (HAN (comp' e2 r c) p) s = s'' /\ P a s}).
+    ({a s'', ⟨comp' e1 (r+1) (UNMARK c), a , s'', Some r⟩ | exists s, set r (HAN (comp' e2 r c) p) s = s'' /\ P a s}).
   ⊇ {eauto}
-    ({a s, ⟨comp' e1 (r+1) (UNMARK c), a , set r (HAN (comp' e2 r c) p) s, r⟩ | P a s}).
+    ({a s, ⟨comp' e1 (r+1) (UNMARK c), a , set r (HAN (comp' e2 r c) p) s, Some r⟩ | P a s}).
   <== {apply vm_mark}
     ({a s, ⟨MARK r (comp' e2 r c) (comp' e1 (r+1) (UNMARK c)), a , s, p⟩ | P a s}).
   [].
+Qed.
+
+
+
+(* Specialise the spec to singleton sets. *)
+Corollary spec' e r a c s p:
+  exists s', ⟨comp' e r c, a, s, p⟩  =>> match eval e with
+                                         | Some n => ⟨c , n, s', p⟩
+                                         | None => ⟪ s', p⟫
+                                         end /\ s =[r] s' .
+Proof.
+  pose (spec e r c p (fun a' s' => a = a' /\ s = s') (⟨comp' e r c, a, s, p⟩)) as S. simpl in S.
+  premise S. eauto.
+  repeat autodestruct. remember (eval e) as E.
+  destruct E; destruct H; repeat autodestruct;subst; eexists; eauto. 
+Qed.
+
+
+(** * Soundness *)
+  
+(** Since the VM is defined as a small step operational semantics, we *)
+(* have to prove that the VM is deterministic and does not get stuck in *)
+(* order to derive soundness from the above theorem. *)
+
+
+Ltac mem_get := match goal with
+                | [H : get _ _ = _, I : get _ _ = _ |- _] => rewrite H in I; inversion I
+                end.
+
+Lemma determ_vm : determ VM.
+  intros C C1 C2 V. induction V; intro V'; inversion V'; subst; try mem_get; reflexivity.
+Qed.
+
+
+Theorem sound x a s C : ⟨comp x, a, s, None⟩ =>>! C -> exists s', C = match eval x with
+                                                                     | Some n => ⟨HALT, n, s', None⟩
+                                                                     | None => ⟪ s', None⟫
+                                                                     end.
+Proof.
+  intros.
+  pose (spec' x 0 a HALT s None) as H'. repeat autodestruct. unfold comp in *. pose (determ_trc determ_vm) as D.
+  unfold determ in D. remember (eval x) as E. destruct E.
+  eexists. eapply D. apply H. split. apply H0. intro Contra. destruct Contra.
+  inversion H2.
+
+  eexists. eapply D. apply H. split. apply H0. intro Contra. destruct Contra.
+  inversion H2.
 Qed.

@@ -8,6 +8,9 @@ Ltac premise H := match type of  H with
 Ltac autodestruct := match goal with
                      | [ H : _ /\ _ |- _] => destruct H
                      | [ H : exists _ , _ |- _] => destruct H
+                     | [ H : Some _ = Some _ |- _] => inversion H; clear H
+                     | [ H : Some _ = None |- _] => inversion H
+                     | [ H : None = Some _ |- _] => inversion H
                      end.
 
 
