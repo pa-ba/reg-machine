@@ -46,9 +46,9 @@ Inductive Code : Set :=
 Fixpoint comp' (x : Expr) (r : adr) (c : Code) : Code :=
   match x with
   | Val n => LOAD n c
-  | Add e1 e2 => comp' e1 r (STORE r (comp' e2 (r+1) (ADD r c)))
+  | Add e1 e2 => comp' e1 r (STORE r (comp' e2 (next r) (ADD r c)))
   | Throw => THROW
-  | Catch e1 e2 => MARK r (comp' e2 r c) (comp' e1 (r+1) (UNMARK c))
+  | Catch e1 e2 => MARK r (comp' e2 r c) (comp' e1 (next r) (UNMARK c))
   end.
 
 Definition comp (x : Expr) : Code := comp' x adr0 HALT.
@@ -152,19 +152,16 @@ Proof.
      ∪ {s a, ⟪ s, p ⟫ | P a s /\ eval e1 = None}
     ).
   <|= {apply IHe2}
-      ({s m, ⟨comp' e2 (r+1) (ADD r c), m, s, p ⟩ | get r s = NUM m /\ (exists a, P a s) /\ eval e1 = Some m }
+      ({s m, ⟨comp' e2 (next r) (ADD r c), m, s, p ⟩ | get r s = NUM m /\ (exists a, P a s) /\ eval e1 = Some m }
          ∪ {s a, ⟪ s, p ⟫ | P a s /\ eval e1 = None}).
-  ⊇ { eauto using get_set}
-    ({s a m, ⟨comp' e2 (r+1) (ADD r c), m, set r (NUM m) s, p ⟩ | P a (set r (NUM m) s ) /\ eval e1 = Some m }
-       ∪ {s a, ⟪ s, p ⟫ | P a s /\ eval e1 = None}).
-  ⊇ { rProp_set_solve }
-    ({s a m, ⟨comp' e2 (r+1) (ADD r c), m, set r (NUM m) s, p ⟩| P a s /\ eval e1 = Some m }
+  ⊇ { try (rewrite <- rProp_set);eauto using get_set}
+    ({s a m, ⟨comp' e2 (next r) (ADD r c), m, set r (NUM m) s, p ⟩| P a s /\ eval e1 = Some m }
        ∪ {s a, ⟪ s, p ⟫ | P a s /\ eval e1 = None}).
   <== { apply vm_store}
-      ({s a m, ⟨STORE r (comp' e2 (r+1) (ADD r c)), m, s, p ⟩| P a s /\ eval e1 = Some m }
+      ({s a m, ⟨STORE r (comp' e2 (next r) (ADD r c)), m, s, p ⟩| P a s /\ eval e1 = Some m }
          ∪ {s a, ⟪ s, p ⟫ | P a s /\ eval e1 = None}).
   <|= { apply IHe1}
-    ({s a, ⟨comp' e1 r (STORE r (comp' e2 (r+1) (ADD r c))), a, s, p⟩ | P a s }).
+    ({s a, ⟨comp' e1 r (STORE r (comp' e2 (next r) (ADD r c))), a, s, p⟩ | P a s }).
   [].
 
   (** - [x = Throw]: *)
@@ -204,11 +201,11 @@ Proof.
       ({s a n, ⟨ UNMARK c, n, s,  Some r⟩ | (get r s = HAN (comp' e2 r c) p /\ P a s) /\ eval e1 = Some n}
          ∪ {s a, ⟪ s, Some r ⟫ | (get r s = HAN (comp' e2 r c) p /\ P a s) /\ eval e1 = None}).
   <|= {eapply IHe1}
-      ({s a, ⟨comp' e1 (r+1) (UNMARK c), a , s, Some r⟩ | get r s = HAN (comp' e2 r c) p /\ P a s}).
-  ⊇ {eauto using get_set; rProp_set_solve}
-    ({s a, ⟨comp' e1 (r+1) (UNMARK c), a , set r (HAN (comp' e2 r c) p) s, Some r⟩ | P a s}).
+      ({s a, ⟨comp' e1 (next r) (UNMARK c), a , s, Some r⟩ | get r s = HAN (comp' e2 r c) p /\ P a s}).
+  ⊇ {try (rewrite <- rProp_set); eauto using get_set}
+    ({s a, ⟨comp' e1 (next r) (UNMARK c), a , set r (HAN (comp' e2 r c) p) s, Some r⟩ | P a s}).
   <== {apply vm_mark}
-    ({s a, ⟨MARK r (comp' e2 r c) (comp' e1 (r+1) (UNMARK c)), a , s, p⟩ | P a s}).
+    ({s a, ⟨MARK r (comp' e2 r c) (comp' e1 (next r) (UNMARK c)), a , s, p⟩ | P a s}).
   [].
 Qed.
 

@@ -193,6 +193,3 @@ Proof. intros. rewrite <- rProp_set; eauto. Qed.
 
 Lemma rProp_set_l T (P : Mem T -> Prop) v s r : rProp r P -> P (set r v s) -> P s.
 Proof. intros. rewrite <- rProp_set in *; eauto. Qed.
-
-
-Ltac rProp_set_solve := eauto;try (rewrite <- rProp_set; eauto).

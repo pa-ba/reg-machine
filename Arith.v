@@ -30,7 +30,7 @@ Inductive Code : Set :=
 Fixpoint comp' (x : Expr) (r : adr) (c : Code) : Code :=
   match x with
     Val n => LOAD n c
-  | Add e1 e2 => comp' e1 r (STORE r (comp' e2 (r+1) (ADD r c)))
+  | Add e1 e2 => comp' e1 r (STORE r (comp' e2 (next r) (ADD r c)))
   end.
 
 Definition comp (x : Expr) : Code := comp' x adr0 HALT.
@@ -60,10 +60,6 @@ Module VMCalc := Calculation VM.
 Import VMCalc.
 
 (** Specification of the compiler *)
-Ltac rProp_set_solve' := eauto;match goal with
-                  | [ I : rProp _ ?P |- ?P (set _ _ _) ] => solve[rewrite <- rProp_set; eauto]
-                  | _ => idtac
-                  end.
 
 Theorem spec e r a c P : rProp r P -> { s , ⟨comp' e r c, a, s⟩ | P s } =|> {s , ⟨c , eval e, s⟩ | P s } .
 
@@ -103,15 +99,13 @@ Proof.
   <== { apply vm_add}
     ({ s, ⟨ADD r c, eval e2, s⟩ | get r s = eval e1 /\ P s }).
   <|= {apply IHe2;eauto}
-   ({ s, ⟨comp' e2 (r+1) (ADD r c), eval e1, s⟩ | get r s = eval e1 /\ P s }).
-  ⊇ {eauto using get_set}
-    ({s, ⟨comp' e2 (r+1) (ADD r c), eval e1, set r (eval e1) s⟩ | P(set r (eval e1) s) }). 
-  ⊇ {rProp_set_solve}
-    ({s, ⟨comp' e2 (r+1) (ADD r c), eval e1, set r (eval e1) s⟩ | P s }).
+   ({ s, ⟨comp' e2 (next r) (ADD r c), eval e1, s⟩ | get r s = eval e1 /\ P s }).
+  ⊇ {try (rewrite <- rProp_set); eauto using get_set}
+    ({s, ⟨comp' e2 (next r) (ADD r c), eval e1, set r (eval e1) s⟩ | P s }).
   <== { apply vm_store}
-    ({ s, ⟨STORE r (comp' e2 (r+1) (ADD r c)), eval e1, s⟩ | P(s) }).
+    ({ s, ⟨STORE r (comp' e2 (next r) (ADD r c)), eval e1, s⟩ | P(s) }).
   <|= { apply IHe1 }
-    ({ s, ⟨comp' e1 r (STORE r (comp' e2 (r+1) (ADD r c))), a, s⟩ | P(s) }).
+    ({ s, ⟨comp' e1 r (STORE r (comp' e2 (next r) (ADD r c))), a, s⟩ | P(s) }).
   [].
 Qed.
 
