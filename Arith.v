@@ -27,13 +27,13 @@ Inductive Code : Set :=
 | STORE : adr -> Code -> Code
 | HALT : Code.
 
-Fixpoint comp' (x : Expr) (r : nat) (c : Code) : Code :=
+Fixpoint comp' (x : Expr) (r : adr) (c : Code) : Code :=
   match x with
     Val n => LOAD n c
   | Add e1 e2 => comp' e1 r (STORE r (comp' e2 (r+1) (ADD r c)))
   end.
 
-Definition comp (x : Expr) : Code := comp' x 0 HALT.
+Definition comp (x : Expr) : Code := comp' x adr0 HALT.
 
 (** * Virtual Machine *)
 
@@ -60,13 +60,15 @@ Module VMCalc := Calculation VM.
 Import VMCalc.
 
 (** Specification of the compiler *)
+Ltac rProp_set_solve' := eauto;match goal with
+                  | [ I : rProp _ ?P |- ?P (set _ _ _) ] => solve[rewrite <- rProp_set; eauto]
+                  | _ => idtac
+                  end.
 
-Theorem spec e r a c P : { s , ⟨comp' e r c, a, s⟩ | P s } =|> {s s', ⟨c , eval e, s'⟩ | s =[r] s' /\ P s } .
+Theorem spec e r a c P : rProp r P -> { s , ⟨comp' e r c, a, s⟩ | P s } =|> {s , ⟨c , eval e, s⟩ | P s } .
 
 
 (** Setup the induction proof *)
-
-Ltac lemma1 := first[first [eapply set_eqr|eapply set_get_eqr]; eauto using eqr_sym, eqr_trans; omega|eauto].
 
 Proof.
   intros.
@@ -81,36 +83,34 @@ Proof.
 (** - [x = Val n]: *)
 
   begin
-    ({s s' , ⟨ c, eval (Val n), s' ⟩ | s =[ r] s' /\ P s}).
+    ({s , ⟨ c, eval (Val n), s ⟩ | P s}).
   ⊇ { auto }
-    ({s s' , ⟨ c, n, s' ⟩ | s =[ r] s' /\ P s}).
+    ({s , ⟨ c, n, s⟩ | P s}).
   <== { apply vm_load }
-    ({s s' , ⟨ LOAD n c, a, s' ⟩ | s =[ r] s' /\ P s}).
+    ({s , ⟨ LOAD n c, a, s ⟩ | P s}).
   ⊇ { auto using eqr_refl }
     ({s , ⟨ LOAD n c, a, s ⟩ | P s}).
   [].
 
 (** - [x = Add x1 x2]: *)
-
+  
   begin
-    ({s s' , ⟨ c, eval (Add e1 e2), s' ⟩ | s =[ r] s' /\ P s}).
+    ({s, ⟨ c, eval (Add e1 e2), s ⟩ | P s}).
   ⊇ {auto}
-    ({s s' , ⟨ c, eval e1 + eval e2, s' ⟩ | s =[ r] s' /\ P s}).
+    ({s, ⟨ c, eval e1 + eval e2, s ⟩ | P s}).
   ⊇ {eauto}
-    ({ s s', ⟨c, get r s' + eval e2, s'⟩ | s =[r] s' /\ get r s' = eval e1 /\ P(s) }).
+    ({ s, ⟨c, get r s + eval e2, s⟩ | get r s = eval e1 /\ P s }).
   <== { apply vm_add}
-    ({ s s', ⟨ADD r c, eval e2, s'⟩ | s =[r] s' /\ get r s' = eval e1 /\ P(s) }).
-  ⊇ { lemma1 }
-    ({ s'' s', ⟨ADD r c, eval e2, s'⟩ | s'' =[r+1] s' /\ (exists s, s'' =[r+1] set r (eval e1) s /\ P(s)) }).
-  <|= { apply IHe2}
-   ({ s'', ⟨comp' e2 (r+1) (ADD r c), eval e1, s''⟩ | (exists s, s'' =[r+1] set r (eval e1) s /\ P(s)) }).
-  ⊇ {eauto}
-    ({ s''' s, ⟨comp' e2 (r+1) (ADD r c), eval e1, set r (eval e1) s'''⟩ | (set r (eval e1) s''' =[r+1] set r (eval e1) s /\ P(s)) }).
-  ⊇ { eauto using set_eqr_incr, eqr_sym }
-    ({ s s''', ⟨comp' e2 (r+1) (ADD r c), eval e1, set r (eval e1) s'''⟩ | s =[r] s''' /\ P(s) }).
+    ({ s, ⟨ADD r c, eval e2, s⟩ | get r s = eval e1 /\ P s }).
+  <|= {apply IHe2;eauto}
+   ({ s, ⟨comp' e2 (r+1) (ADD r c), eval e1, s⟩ | get r s = eval e1 /\ P s }).
+  ⊇ {eauto using get_set}
+    ({s, ⟨comp' e2 (r+1) (ADD r c), eval e1, set r (eval e1) s⟩ | P(set r (eval e1) s) }). 
+  ⊇ {rProp_set_solve}
+    ({s, ⟨comp' e2 (r+1) (ADD r c), eval e1, set r (eval e1) s⟩ | P s }).
   <== { apply vm_store}
-    ({ s s''', ⟨STORE r (comp' e2 (r+1) (ADD r c)), eval e1, s'''⟩ | s =[r] s''' /\ P(s) }).
-  <|= { apply IHe1}
+    ({ s, ⟨STORE r (comp' e2 (r+1) (ADD r c)), eval e1, s⟩ | P(s) }).
+  <|= { apply IHe1 }
     ({ s, ⟨comp' e1 r (STORE r (comp' e2 (r+1) (ADD r c))), a, s⟩ | P(s) }).
   [].
 Qed.
@@ -120,9 +120,9 @@ Qed.
 Corollary spec' e r a c s :
   exists s', ⟨comp' e r c, a, s⟩  =>> ⟨c , eval e, s'⟩ /\ s =[r] s'.
 Proof.
-  pose (spec e r a c (fun s' => s = s') (⟨comp' e r c, a, s⟩)) as S. simpl in S.
-  premise S. eauto.
-  repeat autodestruct. eexists. subst. split; eauto.
+  pose (spec e r a c (fun s' => s =[r] s')) as S. premise S. eapply rProp_eqr.
+  pose (S (⟨comp' e r c, a, s⟩)) as S'. simpl in S'. premise S'. eexists. split;eauto. 
+  repeat autodestruct; subst; eexists; eauto.
 Qed.
 
 
@@ -141,7 +141,7 @@ Qed.
 Theorem sound x a s C : ⟨comp x, a, s⟩ =>>! C -> exists s', C = ⟨HALT, eval x, s'⟩.
 Proof.
   intros.
-  pose (spec' x 0 a HALT s) as H'. repeat autodestruct. unfold comp in *. pose (determ_trc determ_vm) as D.
+  pose (spec' x adr0 a HALT s) as H'. repeat autodestruct. unfold comp in *. pose (determ_trc determ_vm) as D.
   unfold determ in D. eexists. eapply D. apply H. split. apply H0. intro Contra. destruct Contra.
   inversion H2.
 Qed.

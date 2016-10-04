@@ -20,7 +20,7 @@ Fixpoint eval (x: Expr) : option nat :=
     | Val n => Some n
     | Add x1 x2 => match eval x1 with
                    | Some m => match eval x2 with
-                               | Some n => Some (m + n)
+                               | Some n => Some (m + n)%nat
                                | None => None
                                end
                    | None => None
@@ -43,7 +43,7 @@ Inductive Code : Set :=
 | MARK : adr -> Code -> Code -> Code
 | HALT : Code.
 
-Fixpoint comp' (x : Expr) (r : nat) (c : Code) : Code :=
+Fixpoint comp' (x : Expr) (r : adr) (c : Code) : Code :=
   match x with
   | Val n => LOAD n c
   | Add e1 e2 => comp' e1 r (STORE r (comp' e2 (r+1) (ADD r c)))
@@ -51,7 +51,7 @@ Fixpoint comp' (x : Expr) (r : nat) (c : Code) : Code :=
   | Catch e1 e2 => MARK r (comp' e2 r c) (comp' e1 (r+1) (UNMARK c))
   end.
 
-Definition comp (x : Expr) : Code := comp' x 0 HALT.
+Definition comp (x : Expr) : Code := comp' x adr0 HALT.
 
 Definition Han := option adr.
 
@@ -92,10 +92,10 @@ Import VMCalc.
 
 (** Specification of the compiler *)
 
-Theorem spec e r c p P :
-  {a s , ⟨comp' e r c, a, s, p⟩ | P a s }
-    =|> {a s s' n, ⟨c , n, s', p⟩ | s =[r] s' /\ P a s /\ eval e = Some n}
-    ∪   {a s s', ⟪s', p⟫ | s =[r] s' /\ P a s /\ eval e = None}.
+Theorem spec e r c p P : (forall a, rProp r (P a)) ->
+  {s a, ⟨comp' e r c, a, s, p⟩ | P a s }
+    =|> {s a n, ⟨c , n, s, p⟩ | P a s /\ eval e = Some n}
+    ∪   {s a, ⟪s, p⟫ | P a s /\ eval e = None}.
 
 
 (** Setup the induction proof *)
@@ -116,122 +116,99 @@ Proof.
 (** - [x = Val n]: *)
 
   begin
-    ({a s s' n0, ⟨ c, n0, s', p ⟩ | s =[r] s' /\ P a s /\ eval (Val n) = Some n0}
-       ∪ {a s s', ⟪ s', p ⟫ | s =[r] s' /\ P a s /\ eval (Val n) = None}).
+    ({s a n', ⟨ c, n', s, p ⟩ | P a s /\ eval (Val n) = Some n'}
+       ∪ {s a, ⟪ s, p ⟫ | P a s /\ eval (Val n) = None}).
   ⊇ { eauto }
-    ({a s s' , ⟨ c, n, s', p ⟩ | s =[r] s' /\ P a s}).
+    ({s a , ⟨ c, n, s, p ⟩ | P a s}).
   <== { apply vm_load }
-    ({a s s' , ⟨ LOAD n c, a, s', p ⟩ | s =[r] s' /\ P a s}).
+    ({s a , ⟨ LOAD n c, a, s, p ⟩ | P a s}).
   ⊇ { auto using eqr_refl }
-    ({a s , ⟨ LOAD n c, a, s, p ⟩ | P a s}).
+    ({s a , ⟨ LOAD n c, a, s, p ⟩ | P a s}).
   [].
 
 (** - [x = Add x1 x2]: *)
 
   begin
-    ({a s s' n, ⟨ c, n, s', p ⟩ | s =[r] s' /\ P a s /\ eval (Add e1 e2) = Some n}
-    ∪ {a s s', ⟪ s', p ⟫ | s =[ r] s' /\ P a s /\ eval (Add e1 e2) = None}).
+    ({s a n, ⟨ c, n, s, p ⟩ | P a s /\ eval (Add e1 e2) = Some n}
+    ∪ {s a , ⟪ s, p ⟫ | P a s /\ eval (Add e1 e2) = None}).
   ⊇ {eauto}
-    ({a s s' m n , ⟨ c, m + n, s', p ⟩ | s =[r] s' /\ P a s /\ eval e1 = Some m /\ eval e2 = Some n}
-     ∪ {a s s', ⟪ s', p ⟫ | s =[r] s' /\ P a s /\ eval e1 = None}
-     ∪ {a s s', ⟪ s', p ⟫ | s =[r] s' /\ P a s /\ (exists m , eval e1 = Some m) /\ eval e2 = None}
+    ({s a m n , ⟨ c, m + n, s, p ⟩ | P a s /\ eval e1 = Some m /\ eval e2 = Some n}
+     ∪ {s a, ⟪ s, p ⟫ |P a s /\ eval e1 = None}
+     ∪ {s a m, ⟪ s, p ⟫ |P a s /\ eval e1 = Some m /\ eval e2 = None}
     ).
   ⊇ {eauto}
-    ({a s s' m n , ⟨ c, m + n, s', p ⟩ | s =[r] s' /\ get r s' = NUM m /\ P a s /\ eval e1 = Some m /\ eval e2 = Some n}
-     ∪ {a s s', ⟪ s', p ⟫ | s =[r] s' /\ P a s /\ eval e1 = None}
-     ∪ {a s s', ⟪ s', p ⟫ | s =[r] s' /\ P a s /\ (exists m , eval e1 = Some m) /\ eval e2 = None}
+    ({s a m n , ⟨ c, m + n, s, p ⟩ | get r s = NUM m /\ P a s /\ eval e1 = Some m /\ eval e2 = Some n}
+     ∪ {s a, ⟪ s, p ⟫ | P a s /\ eval e1 = None}
+     ∪ {s a m, ⟪ s, p ⟫ | P a s /\ eval e1 = Some m /\ eval e2 = None}
     ).
   <== { apply vm_add}
-    ({a s s' m n , ⟨ ADD r c, n, s', p ⟩ | s =[r] s' /\ get r s' = NUM m /\ P a s /\ eval e1 = Some m /\ eval e2 = Some n}
-     ∪ {a s s', ⟪ s', p ⟫ | s =[r] s' /\ P a s /\ eval e1 = None}
-     ∪ {a s s', ⟪ s', p ⟫ | s =[r] s' /\ P a s /\ (exists m , eval e1 = Some m) /\ eval e2 = None}
+    ({s a m n , ⟨ ADD r c, n, s, p ⟩ | get r s = NUM m /\ P a s /\ eval e1 = Some m /\ eval e2 = Some n}
+     ∪ {s a, ⟪ s, p ⟫ | P a s /\ eval e1 = None}
+     ∪ {s a m, ⟪ s, p ⟫ | P a s /\ eval e1 = Some m /\ eval e2 = None}
     ).
   ⊇ { eauto }
-    ({m s s' n , ⟨ ADD r c, n, s', p ⟩ | s =[r] s' /\ get r s' = NUM m /\ (exists a, P a s) /\ eval e1 = Some m /\ eval e2 = Some n}
-     ∪ {m s s', ⟪ s', p ⟫ | s =[r] s' /\ (exists a, P a s) /\  get r s' = NUM m /\ eval e1 = Some m /\ eval e2 = None}
-     ∪ {a s s', ⟪ s', p ⟫ | s =[r] s' /\ P a s /\ eval e1 = None}
+    ({s m n , ⟨ ADD r c, n, s, p ⟩ | (get r s = NUM m /\ (exists a, P a s) /\ eval e1 = Some m) /\ eval e2 = Some n}
+     ∪ {s m, ⟪ s, p ⟫ | (get r s = NUM m /\ (exists a, P a s) /\ eval e1 = Some m) /\ eval e2 = None}
+     ∪ {s a, ⟪ s, p ⟫ | P a s /\ eval e1 = None}
     ).
-  ⊇ {lemma1}
-    ({m s'' s' n , ⟨ ADD r c, n, s', p ⟩ | s'' =[r+1] s' /\
-        (exists a s, s'' =[r+1] set r (NUM m) s /\ P a s /\ eval e1 = Some m) /\ eval e2 = Some n}
-     ∪ {m s'' s', ⟪ s', p ⟫ | s'' =[r+1] s' /\
-        (exists a s, s'' =[r+1] set r (NUM m) s /\ P a s /\ eval e1 = Some m) /\ eval e2 = None}
-     ∪ {a s s', ⟪ s', p ⟫ | s =[r] s' /\ P a s /\ eval e1 = None} ).  
-  <|= { apply IHe2}
-      ({m s'', ⟨comp' e2 (r+1) (ADD r c), m, s'', p ⟩ | exists a s, s'' =[r+1] set r (NUM m) s /\
-                                                                    P a s /\ eval e1 = Some m}
-         ∪ {a s s', ⟪ s', p ⟫ | s =[r] s' /\ P a s /\ eval e1 = None}).
-  ⊇ {eauto}
-    ({a m s s'', ⟨comp' e2 (r+1) (ADD r c), m, set r (NUM m) s'', p ⟩ | 
-      set r (NUM m) s'' =[r+1] set r (NUM m) s /\ P a s /\ eval e1 = Some m}
-      ∪ {a s s', ⟪ s', p ⟫ | s =[r] s' /\ P a s /\ eval e1 = None}).
-  ⊇ { eauto using set_eqr_incr, eqr_sym }
-    ({a s s'' m, ⟨comp' e2 (r+1) (ADD r c), m, set r (NUM m) s'', p ⟩ | s'' =[r]  s /\ P a s /\ eval e1 = Some m}
-      ∪ {a s s', ⟪ s', p ⟫ | s =[r] s' /\ P a s /\ eval e1 = None}).
+  <|= {apply IHe2}
+      ({s m, ⟨comp' e2 (r+1) (ADD r c), m, s, p ⟩ | get r s = NUM m /\ (exists a, P a s) /\ eval e1 = Some m }
+         ∪ {s a, ⟪ s, p ⟫ | P a s /\ eval e1 = None}).
+  ⊇ { eauto using get_set}
+    ({s a m, ⟨comp' e2 (r+1) (ADD r c), m, set r (NUM m) s, p ⟩ | P a (set r (NUM m) s ) /\ eval e1 = Some m }
+       ∪ {s a, ⟪ s, p ⟫ | P a s /\ eval e1 = None}).
+  ⊇ { rProp_set_solve }
+    ({s a m, ⟨comp' e2 (r+1) (ADD r c), m, set r (NUM m) s, p ⟩| P a s /\ eval e1 = Some m }
+       ∪ {s a, ⟪ s, p ⟫ | P a s /\ eval e1 = None}).
   <== { apply vm_store}
-    ({a s s'' m, ⟨STORE r (comp' e2 (r+1) (ADD r c)), m,  s'', p ⟩ | s'' =[r]  s /\ P a s /\ eval e1 = Some m}
-      ∪ {a s s', ⟪ s', p ⟫ | s =[r] s' /\ P a s /\ eval e1 = None}).
-  ⊇ { eauto using eqr_sym}
-    ({a s s'' m, ⟨STORE r (comp' e2 (r+1) (ADD r c)), m,  s'', p ⟩ | s =[r]  s'' /\ P a s /\ eval e1 = Some m}
-      ∪ {a s s', ⟪ s', p ⟫ | s =[r] s' /\ P a s /\ eval e1 = None}).
+      ({s a m, ⟨STORE r (comp' e2 (r+1) (ADD r c)), m, s, p ⟩| P a s /\ eval e1 = Some m }
+         ∪ {s a, ⟪ s, p ⟫ | P a s /\ eval e1 = None}).
   <|= { apply IHe1}
-    ({a s, ⟨comp' e1 r (STORE r (comp' e2 (r+1) (ADD r c))), a, s, p⟩ | P a s }).
+    ({s a, ⟨comp' e1 r (STORE r (comp' e2 (r+1) (ADD r c))), a, s, p⟩ | P a s }).
   [].
 
   (** - [x = Throw]: *)
   begin
-    ({a s s' n, ⟨ c, n, s', p ⟩ | s =[ r] s' /\ P a s /\ eval Throw = Some n}
-       ∪ {a s s', ⟪ s', p ⟫ | s =[ r] s' /\ P a s /\ eval Throw = None}).
+    ({s a n, ⟨ c, n, s, p ⟩ | P a s /\ eval Throw = Some n}
+       ∪ {s a, ⟪ s, p ⟫ |P a s /\ eval Throw = None}).
   ⊇ {eauto}
-    ({a s s', ⟪ s', p ⟫ | s =[ r] s' /\ P a s}).
+    ({s a, ⟪ s, p ⟫ | P a s}).
   <== {eapply vm_throw}
-    ({a s s', ⟨THROW, a, s', p⟩ | s =[ r] s' /\ P a s}).
-  ⊇ {eauto using eqr_refl}
-    ({a s , ⟨THROW, a, s, p⟩ | P a s}).
+    ({s a, ⟨THROW, a, s, p⟩ | P a s}).
   [].
 
   (** - [x = Catch e1 e2]: *)
   begin
-  ({a s s' n, ⟨ c, n, s', p ⟩ | s =[r] s' /\ P a s /\ eval (Catch e1 e2) = Some n}
-  ∪ {a s s', ⟪ s', p ⟫ | s =[r] s' /\ P a s /\ eval (Catch e1 e2) = None}).
+  ({s a n, ⟨ c, n, s, p ⟩ | P a s /\ eval (Catch e1 e2) = Some n}
+  ∪ {s a, ⟪ s, p ⟫ | P a s /\ eval (Catch e1 e2) = None}).
   ⊇ {eauto}
-  ({a s s' n, ⟨ c, n, s', p ⟩ | s =[r] s' /\ P a s /\ eval e1 = Some n}
-     ∪ {a s s' n, ⟨ c, n, s', p ⟩ | s =[r] s' /\ P a s /\ eval e1 = None /\ eval e2 = Some n}
-     ∪ {a s s', ⟪ s', p ⟫ | s =[r] s' /\ P a s /\ eval e1 = None /\ eval e2 = None}).
-  ⊇ {eauto using eqr_trans}
-  ({a s s' n, ⟨ c, n, s', p ⟩ | s =[r] s' /\ P a s /\ eval e1 = Some n}
-     ∪ ({ (a: nat) s'' s' n, ⟨ c, n, s', p ⟩ | s'' =[r] s' /\ (a = 0 /\ exists a s, s =[r] s'' /\ P a s /\ eval e1 = None) /\ eval e2 = Some n}
-     ∪ {(a:nat) s'' s', ⟪ s', p ⟫ | s'' =[r] s' /\ (a = 0 /\ exists a s, s =[r] s'' /\ P a s /\ eval e1 = None) /\ eval e2 = None})).
+  ({s a n, ⟨ c, n, s, p ⟩ | P a s /\ eval e1 = Some n}
+     ∪ ({s a n, ⟨ c, n, s, p ⟩ | (a = 0 /\ exists a, P a s /\ eval e1 = None) /\ eval e2 = Some n}
+     ∪ {s a, ⟪ s, p ⟫ | (a = 0 /\ exists a, P a s /\ eval e1 = None) /\ eval e2 = None})).
   <|= {eapply IHe2}
-  ({a s s' n, ⟨ c, n, s', p ⟩ | s =[r] s' /\ P a s /\ eval e1 = Some n}
-     ∪ {a s'', ⟨ comp' e2 r c, a , s'', p ⟩ | a = 0 /\ exists a s, s =[r] s'' /\ P a s /\ eval e1 = None}).
+  ({s a n, ⟨ c, n, s, p ⟩ | P a s /\ eval e1 = Some n}
+     ∪ {s a, ⟨ comp' e2 r c, a , s, p ⟩ | a = 0 /\ exists a, P a s /\ eval e1 = None}).
   ⊇ {eauto}
-  ({a s s' n, ⟨ c, n, s', p ⟩ | s =[r] s' /\ P a s /\ eval e1 = Some n}
-     ∪ {a s s', ⟨ comp' e2 r c, 0 , s', p ⟩ | s =[r] s' /\ P a s /\ eval e1 = None}).
+  ({s a n, ⟨ c, n, s, p ⟩ | P a s /\ eval e1 = Some n}
+     ∪ {s a, ⟨ comp' e2 r c, 0 , s, p ⟩ | P a s /\ eval e1 = None}).
   ⊇ {eauto}
-  ({a s s' n, ⟨ c, n, s', p ⟩ | s =[r] s' /\ get r s' = HAN (comp' e2 r c) p /\ P a s /\ eval e1 = Some n}
-     ∪ {a s s', ⟨ comp' e2 r c, 0 , s', p ⟩ | s =[r] s' /\ get r s' = HAN (comp' e2 r c) p /\ P a s /\ eval e1 = None}).
+  ({s a n, ⟨ c, n, s, p ⟩ | get r s = HAN (comp' e2 r c) p /\ P a s /\ eval e1 = Some n}
+     ∪ {s a, ⟨ comp' e2 r c, 0 , s, p ⟩ | get r s = HAN (comp' e2 r c) p /\ P a s /\ eval e1 = None}).
   <== {apply vm_fail}
-  ({a s s' n, ⟨ c, n, s', p ⟩ | s =[r] s' /\ get r s' = HAN (comp' e2 r c) p /\ P a s /\ eval e1 = Some n}
-     ∪ {a s s', ⟪ s', Some r ⟫ | s =[r] s' /\ get r s' = HAN (comp' e2 r c) p /\ P a s /\ eval e1 = None}).
-  ⊇ {lemma1}
-  ({a s s' n, ⟨ c, n, s', p ⟩ | s =[r] s' /\ get r s' = HAN (comp' e2 r c) p /\ P a s /\ eval e1 = Some n}
-     ∪ {a s s', ⟪ s', Some r ⟫ | set r (HAN (comp' e2 r c) p) s =[r+1] s' /\ P a s /\ eval e1 = None}).
+      ({s a n, ⟨ c, n, s, p ⟩ | get r s = HAN (comp' e2 r c) p /\ P a s /\ eval e1 = Some n}
+         ∪ {s a, ⟪ s, Some r ⟫ | get r s = HAN (comp' e2 r c) p /\ P a s /\ eval e1 = None}).
   <== {eapply vm_unmark}
-  ({a s s' n, ⟨UNMARK c, n, s', Some r⟩ | s =[r] s' /\ get r s' = HAN (comp' e2 r c) p /\ P a s /\ eval e1 = Some n}
-     ∪ {a s s', ⟪ s', Some r⟫ | set r (HAN (comp' e2 r c) p) s =[r+1] s' /\ P a s /\ eval e1 = None}).
-  ⊇ {lemma1}
-    ({a s s' n, ⟨UNMARK c, n, s', Some r⟩ | set r (HAN (comp' e2 r c) p) s =[r+1] s' /\ P a s /\ eval e1 = Some n}
-     ∪ {a s s', ⟪ s', Some r⟫ | set r (HAN (comp' e2 r c) p) s =[r+1] s' /\ P a s /\ eval e1 = None}).
+      ({s a n, ⟨ UNMARK c, n, s,  Some r⟩ | get r s = HAN (comp' e2 r c) p /\ P a s /\ eval e1 = Some n}
+         ∪ {s a, ⟪ s, Some r ⟫ | get r s = HAN (comp' e2 r c) p /\ P a s /\ eval e1 = None}).
   ⊇ {eauto}
-    ({a s'' s' n, ⟨UNMARK c, n, s', Some r⟩ | s'' =[r+1] s' /\ (exists s, set r (HAN (comp' e2 r c) p) s = s'' /\ P a s) /\ eval e1 = Some n}
-     ∪ {a s'' s', ⟪ s', Some r⟫ | s'' =[r+1] s' /\ (exists s, set r (HAN (comp' e2 r c) p) s = s'' /\ P a s) /\ eval e1 = None}).
+      ({s a n, ⟨ UNMARK c, n, s,  Some r⟩ | (get r s = HAN (comp' e2 r c) p /\ P a s) /\ eval e1 = Some n}
+         ∪ {s a, ⟪ s, Some r ⟫ | (get r s = HAN (comp' e2 r c) p /\ P a s) /\ eval e1 = None}).
   <|= {eapply IHe1}
-    ({a s'', ⟨comp' e1 (r+1) (UNMARK c), a , s'', Some r⟩ | exists s, set r (HAN (comp' e2 r c) p) s = s'' /\ P a s}).
-  ⊇ {eauto}
-    ({a s, ⟨comp' e1 (r+1) (UNMARK c), a , set r (HAN (comp' e2 r c) p) s, Some r⟩ | P a s}).
+      ({s a, ⟨comp' e1 (r+1) (UNMARK c), a , s, Some r⟩ | get r s = HAN (comp' e2 r c) p /\ P a s}).
+  ⊇ {eauto using get_set; rProp_set_solve}
+    ({s a, ⟨comp' e1 (r+1) (UNMARK c), a , set r (HAN (comp' e2 r c) p) s, Some r⟩ | P a s}).
   <== {apply vm_mark}
-    ({a s, ⟨MARK r (comp' e2 r c) (comp' e1 (r+1) (UNMARK c)), a , s, p⟩ | P a s}).
+    ({s a, ⟨MARK r (comp' e2 r c) (comp' e1 (r+1) (UNMARK c)), a , s, p⟩ | P a s}).
   [].
 Qed.
 
@@ -244,8 +221,9 @@ Corollary spec' e r a c s p:
                                          | None => ⟪ s', p⟫
                                          end /\ s =[r] s' .
 Proof.
-  pose (spec e r c p (fun a' s' => a = a' /\ s = s') (⟨comp' e r c, a, s, p⟩)) as S. simpl in S.
-  premise S. eauto.
+  pose (spec e r c p (fun a' s' => a = a' /\ s =[r] s')) as S. simpl in S.
+  premise S. rProp_solve.
+  pose (S ⟨comp' e r c, a, s, p⟩) as S'. simpl in S'. premise S'. eauto.
   repeat autodestruct. remember (eval e) as E.
   destruct E; destruct H; repeat autodestruct;subst; eexists; eauto. 
 Qed.
@@ -273,7 +251,7 @@ Theorem sound x a s C : ⟨comp x, a, s, None⟩ =>>! C -> exists s', C = match 
                                                                      end.
 Proof.
   intros.
-  pose (spec' x 0 a HALT s None) as H'. repeat autodestruct. unfold comp in *. pose (determ_trc determ_vm) as D.
+  pose (spec' x adr0 a HALT s None) as H'. repeat autodestruct. unfold comp in *. pose (determ_trc determ_vm) as D.
   unfold determ in D. remember (eval x) as E. destruct E.
   eexists. eapply D. apply H. split. apply H0. intro Contra. destruct Contra.
   inversion H2.

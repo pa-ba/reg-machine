@@ -32,9 +32,17 @@ Ltac destruct_tuple := idtac; match goal with
   | _ => idtac
 end.
 
+Require Import Memory.
+Ltac rProp_solve :=
+  match goal with
+  | [|- forall _, _ ] => intro; rProp_solve
+  | [|- rProp _ _ ] =>
+    first [solve [eauto]| apply rProp_get; eauto| apply rProp_eqr | apply rProp_const | apply rProp_lea; eauto|
+           first [apply rProp_conj | apply rProp_disj | apply rProp_impl | apply rProp_ex]; rProp_solve ]
+  | _ => idtac
+  end.
 
-
-Ltac lift_union t := first [apply Reach_union; first [apply Reach_refl| lift_union t]| t].
+Ltac lift_union t := first [apply Reach_union; first [apply Reach_refl| lift_union t]| t;rProp_solve].
 
 
 
@@ -48,19 +56,18 @@ Ltac eval_inv ev := let do_inv e H := (first [is_var e; fail 1|inversion H; subs
                           | _ => eauto
                         end.
 
-
-Ltac dist' ev := simpl; intros; subst; ev;
-                match goal with
-                  | [ H: and _ _ |- _ ] => destruct H; dist' ev
-                  | [ H: ex _ |- _ ] => destruct H; dist' ev
-                  | [ H: or _ _ |- _ ] => destruct H; dist' ev
-                  | [ H: eq _ _ |- _ ] => rewrite H in *; dist' ev
-                  | [ |- and _ _ ] => split; repeat dist' ev
-                  | [ |- _ <-> _ ] => split; dist' ev
-                  | [ |- ex _ ] => eexists; dist' ev
-                  | [ |- or _ _] => solve [right;dist' ev|left; dist' ev] 
-                  | _ => idtac
-                end.
+Ltac dist' ev := simpl in *; intros; subst; ev;
+                 match goal with
+                   | [ H: and _ _ |- _ ] => destruct H; dist' ev
+                   | [ H: ex _ |- _ ] => destruct H; dist' ev
+                   | [ H: or _ _ |- _ ] => destruct H; dist' ev
+                   | [ H: eq _ _ |- _ ] => rewrite H in *; dist' ev
+                   | [ |- and _ _ ] => split; repeat dist' ev
+                   | [ |- _ <-> _ ] => split; dist' ev
+                   | [ |- ex _ ] => eexists; dist' ev
+                   | [ |- or _ _] => solve [right;dist' ev|left; dist' ev] 
+                   | _ => idtac
+                 end.
 
 Ltac dist := dist' eauto.
 
