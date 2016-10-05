@@ -2,9 +2,9 @@
 
 Require Import List.
 Require Import Tactics.
-Require Import Memory.
-Require Import ZArith.
-
+Module Arith (mem : Memory).
+Import mem.
+  
 (** * Syntax *)
 
 Inductive Expr : Set := 
@@ -56,7 +56,7 @@ Module VM <: Machine.
 Definition Conf := Conf.
 Definition Rel := VM.
 End VM.
-Module VMCalc := Calculation VM.
+Module VMCalc := Calculation VM mem.
 Import VMCalc.
 
 (** Specification of the compiler *)
@@ -139,3 +139,5 @@ Proof.
   unfold determ in D. eexists. eapply D. apply H. split. apply H0. intro Contra. destruct Contra.
   inversion H2.
 Qed.
+
+End Arith.

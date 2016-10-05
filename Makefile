@@ -54,14 +54,17 @@ COQLIBS?=\
   -R "." ""\
   -R "." ""\
   -R "." ""\
+  -R "." ""\
   -R "." ""
 COQCHKLIBS?=\
   -R "." ""\
   -R "." ""\
   -R "." ""\
   -R "." ""\
+  -R "." ""\
   -R "." ""
 COQDOCLIBS?=\
+  -R "." ""\
   -R "." ""\
   -R "." ""\
   -R "." ""\
@@ -112,6 +115,7 @@ VFILES:=Arith.v\
   Exception.v\
   Machine.v\
   Memory.v\
+  LinearMemory.v\
   Tactics.v
 
 ifneq ($(filter-out archclean clean cleanall printenv,$(MAKECMDGOALS)),)

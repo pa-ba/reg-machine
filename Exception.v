@@ -2,8 +2,9 @@
 
 Require Import List.
 Require Import Tactics.
-Require Import Memory.
-Require Import ZArith.
+Module Exception (mem : Memory).
+Import mem.
+
 
 (** * Syntax *)
 
@@ -87,7 +88,7 @@ Module VM <: Machine.
 Definition Conf := Conf.
 Definition Rel := VM.
 End VM.
-Module VMCalc := Calculation VM.
+Module VMCalc := Calculation VM mem.
 Import VMCalc.
 
 (** Specification of the compiler *)
@@ -99,9 +100,6 @@ Theorem spec e r c p P : (forall a, rProp r (P a)) ->
 
 
 (** Setup the induction proof *)
-
-Ltac lemma1 := first[first [eapply set_eqr|eapply set_get_eqr]; eauto using eqr_sym, eqr_trans; omega|eauto].
-Ltac lemma1' := repeat lemma1.
 
 Proof.
   intros.
@@ -256,3 +254,5 @@ Proof.
   eexists. eapply D. apply H. split. apply H0. intro Contra. destruct Contra.
   inversion H2.
 Qed.
+
+End Exception.

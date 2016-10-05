@@ -1,31 +1,21 @@
-Import Nat.
-Require Import ZArith.
+(* Abstract specification of memory *)
 
+
+Inductive lta T n (r : T) : T -> Prop :=
+| lea_self : lta T n r (n r)
+| lea_next r' : lta T n r r' -> lta T n r (n r').
+
+
+Module Type Memory.
 
 Parameter adr : Set.
 
 Parameter adr0 : adr.
 Parameter next : adr -> adr.
 
-Fixpoint nextN (n : nat) (r : adr) : adr :=
-  match n with
-  | 0 => r
-  | S n' => next (nextN n' r)
-  end.
-
-Notation "r + n" := (nextN n r).
-
-Inductive lta (r : adr) : adr -> Prop :=
-| lea_self : lta r (next r)
-| lea_next r' : lta r r' -> lta r (next r').
-
 Hint Constructors lta.
 
-Infix "<" := lta.
-
-Definition lea r r' := r < r' \/ r = r'.
-
-Infix "<=" := lea.
+Infix "<" := (lta adr next).
 
 Axiom next_fresh : forall (r r' : adr), r < r' -> r <> r'.
 
@@ -37,12 +27,34 @@ Parameter set : forall {T}, adr -> T -> Mem T -> Mem T.
 Axiom get_set : forall T (r : adr) (v : T) (s :  Mem T), get r (set r v s) = v.
 Axiom get_get : forall T (r r' : adr) (v : T) (s :  Mem T), r <> r' -> get r (set r' v s) = get r s.
 
+End Memory.
+
+Module MemoryTheory (mem : Memory).
+
+Import mem.
+Require Import Setoid.  
+       
+
 Lemma lta_trans (r1 r2 r3 : adr) : r1 < r2 -> r2 < r3 -> r1 < r3.
 Proof.
   intros R1 R2. induction R2;auto.
 Qed.
 
 Hint Resolve lta_trans.
+
+Definition lea r r' := r < r' \/ r = r'.
+
+Infix "<=" := lea.
+
+
+Fixpoint nextN (n : nat) (r : adr) : adr :=
+  match n with
+  | 0 => r
+  | S n' => next (nextN n' r)
+  end.
+
+Notation "r + n" := (nextN n r).
+
 
 Lemma next_nextN r n : next (r + n) = next r + n.
 Proof.
@@ -193,3 +205,5 @@ Proof. intros. rewrite <- rProp_set; eauto. Qed.
 
 Lemma rProp_set_l T (P : Mem T -> Prop) v s r : rProp r P -> P (set r v s) -> P s.
 Proof. intros. rewrite <- rProp_set in *; eauto. Qed.
+
+End MemoryTheory.

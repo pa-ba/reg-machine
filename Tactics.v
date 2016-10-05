@@ -16,10 +16,12 @@ Ltac autodestruct := match goal with
 
 
 Require Export Machine.
-
-Module Calculation (mod : Machine).
+Require Export Memory.
+Module Calculation (mod : Machine) (mem: Memory).
 Module Meta := MetaTheory mod.
 Export Meta.
+Module Mem := MemoryTheory mem.
+Export Mem.
 Require Import List.
 Import ListNotations.
 
@@ -32,7 +34,7 @@ Ltac destruct_tuple := idtac; match goal with
   | _ => idtac
 end.
 
-Require Import Memory.
+
 Ltac rProp_solve :=
   match goal with
   | [|- forall _, _ ] => intro; rProp_solve
