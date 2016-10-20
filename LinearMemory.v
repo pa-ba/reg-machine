@@ -33,5 +33,22 @@ Proof.
   intros. unfold get, set. rewrite <- Nat.eqb_neq in H. rewrite H. reflexivity.
 Qed. 
 
+Require Import FunctionalExtensionality.
+
+Lemma set_set : forall T (r : adr) (v v' : T) (s :  Mem T),
+    set r v (set r v' s) = set r v s.
+Proof.
+  intros. apply functional_extensionality. intro. unfold set.
+  destruct (x =? r); reflexivity.
+Qed.
+  
+Lemma set_get : forall T (r : adr) (s :  Mem T),
+    set r (get r s) s = s.
+Proof.
+  intros. apply functional_extensionality. intro. unfold get, set.
+  remember (x =? r) as b. destruct b. symmetry in Heqb. apply beq_nat_true in Heqb.
+  subst. reflexivity. reflexivity.
+Qed. 
+
   
 End LinearMemory.

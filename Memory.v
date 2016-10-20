@@ -24,8 +24,14 @@ Parameter Mem : Type -> Type.
 Parameter get : forall {T}, adr -> Mem T -> T.
 Parameter set : forall {T}, adr -> T -> Mem T -> Mem T.
 
-Axiom get_set : forall T (r : adr) (v : T) (s :  Mem T), get r (set r v s) = v.
-Axiom get_get : forall T (r r' : adr) (v : T) (s :  Mem T), r <> r' -> get r (set r' v s) = get r s.
+Axiom get_set : forall T (r : adr) (v : T) (s :  Mem T),
+    get r (set r v s) = v.
+Axiom get_get : forall T (r r' : adr) (v : T) (s :  Mem T),
+    r <> r' -> get r (set r' v s) = get r s.
+Axiom set_set : forall T (r : adr) (v v' : T) (s :  Mem T),
+    set r v (set r v' s) = set r v s.
+Axiom set_get : forall T (r : adr) (s :  Mem T),
+    set r (get r s) s = s.
 
 End Memory.
 
@@ -90,6 +96,11 @@ Qed.
 Lemma lea_refl r : r <= r.
 Proof. unfold lea. auto. Qed.
 
+Lemma lta_to_lea r r' : r < r' -> r <= r'.
+Proof.
+  intro. unfold "<=". tauto.
+Qed.
+
 Lemma lea_sym r1 r2 r3 : r1 <= r2 -> r2 <= r3 -> r1 <= r3.
 Proof.
   intros R1 R2.
@@ -100,49 +111,56 @@ Qed.
 
 Hint Resolve lta_lea lea_lta lea_sym lea_refl.
 
-Definition Eqr {T} (r : adr) (m1 m2 : Mem T) :=
-  forall i : adr, i < r -> get i m1 = get i m2.
+Inductive eqr {T} (r : adr) : Mem T ->  Mem T -> Prop :=
+| eqr_refl m : eqr r m m
+| eqr_set r' m v : r <= r' -> eqr r m (set r' v m)
+| eqr_trans m1 m2 m3 : eqr r m1 m2 -> eqr r m2 m3 -> eqr r m1 m3. 
 
-Notation "x =[ r ] y" := (Eqr r x y) (at level 70).
+Notation "x =[ r ] y" := (eqr r x y) (at level 70).
+
+Hint Constructors eqr.
 
 
-Lemma eqr_refl T (x : Mem T) r : x =[ r ] x.
-Proof. intros i H. reflexivity. Qed.
 
-Hint Resolve eqr_refl.
+Lemma eqr_set'  T r r' (m: Mem T) v : r <= r' -> set r' v m =[r] m.
+Proof.
+  intros l. apply eqr_set with (m0 := set r' v m) (v0 := get r' m) in l.
+  rewrite set_set in l. rewrite set_get in l. assumption.
+Qed. 
+
 
 Lemma eqr_sym T (x y : Mem T) r : x =[ r ] y -> y =[ r ] x.
-Proof. intros R i E. apply R in E. auto. Qed.
-
-Lemma eqr_trans T (x y z : Mem T) r : x =[ r ] y -> y =[ r ] z -> x =[ r ] z.
 Proof.
-  unfold Eqr. intros H1 H2 i R. pose (H1 i R) as E1. pose (H2 i R) as E2.
-  rewrite E1. auto.
+  intros R. induction R.
+  - constructor.
+  - apply eqr_set'; assumption.
+  - eapply eqr_trans;eassumption.
 Qed. 
+  
 
 Lemma eqr_lea T (x y : Mem T) r r' : x =[ r ] y -> r' <= r -> x =[ r' ] y.
-Proof. intros R L i L'. apply R. eauto. Qed.
+Proof.
+  intros R L. induction R; eauto.
+Qed.
 
 Lemma eqr_lta T (x y : Mem T) r r' : x =[ r ] y -> r' < r -> x =[ r' ] y.
-Proof. intros R L i L'. apply R. eauto. Qed.
+Proof. intros. eauto using eqr_lea, lta_to_lea. Qed.
+       
 
-
-Lemma set_eqr T n (s s' : Mem T) r r' : set r n s =[r'] s' -> r < r' -> s =[r] s'.
+Lemma set_eqr T n (s s' : Mem T) r r' : s =[r] s' -> r <= r' -> set r' n s =[r] s'.
 Proof.
-  intros H R i E. assert (i < r') as E' by eauto. apply H in E'. rewrite <- E'.
-  symmetry. eauto using get_get, next_fresh.
+  intros H R. induction H.
+  - apply eqr_sym. auto.
+  - eapply eqr_trans. apply eqr_sym. apply eqr_set.
+    assumption. apply eqr_set. assumption.
+  - eapply eqr_trans. apply IHeqr1. assumption.
 Qed.
 
 
-Lemma set_get_eqr T r r' (s s' : Mem T) n : set r n s =[r'] s' -> r < r' -> get r s' = n.
-Proof.
-  intros R E. apply R in E. rewrite <- E. apply get_set.
-Qed.
-
-Lemma eqr_set  T r r' (s: Mem T) n : r <= r' -> set r' n s =[r] s.
-Proof.
-  unfold Eqr. intros R i I. apply get_get. apply next_fresh. eauto.
-Qed. 
+(* Lemma set_get_eqr T r r' (s s' : Mem T) n : set r n s =[r'] s' -> r < r' -> get r s' = n. *)
+(* Proof. *)
+(*   intros R E. apply R in E. rewrite <- E. apply get_set. *)
+(* Qed. *)
 
 
 Definition rProp {T} (r: adr) (P : Mem T -> Prop) : Prop := forall s s', s =[r] s' -> (P s <-> P s').
@@ -174,9 +192,18 @@ Proof.
   unfold rProp. tauto.
 Qed.
 
+Lemma eqr_get T (m m' : Mem T) r r' :
+  m =[r] m' -> r' < r -> get r' m = get r' m'.
+Proof.
+  intros R E. induction R.
+  - reflexivity.
+  - rewrite get_get. reflexivity. apply next_fresh. eauto.
+  - rewrite IHR1. rewrite <- IHR2. reflexivity.
+Qed. 
+
 Lemma rProp_get T r r' (v : T) : r' < r -> rProp r (fun s => get r' s = v).
 Proof.
-  unfold rProp. intros R s s' E. rewrite E. tauto. eauto.
+  unfold rProp. intros R s s' E. eapply eqr_get in E. rewrite E. tauto. assumption.
 Qed.
 
 Lemma rProp_eqr T r (s' : Mem T) : rProp r (fun s => s' =[r] s).
@@ -205,5 +232,18 @@ Proof. intros. rewrite <- rProp_set; eauto. Qed.
 
 Lemma rProp_set_l T (P : Mem T -> Prop) v s r : rProp r P -> P (set r v s) -> P s.
 Proof. intros. rewrite <- rProp_set in *; eauto. Qed.
+
+
+Lemma rProp_def T (P : Mem T -> Prop) r :
+  rProp r P <-> (forall m r' v, r <= r' -> (P m <-> P (set r' v m))).
+Proof.
+  split; intro.
+  - auto.
+  - intros m m' R. induction R.
+    * tauto.
+    * auto.
+    * rewrite IHR1. assumption.
+Qed .
+    
 
 End MemoryTheory.
