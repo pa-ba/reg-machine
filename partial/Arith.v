@@ -37,7 +37,7 @@ Definition comp (x : Expr) : Code := comp' x first HALT.
 
 (** * Virtual Machine *)
 
-Definition Memory : Type := Mem nat.
+Definition Memory : Type := Mem.
 Definition Acc : Type := nat.
 
 Definition Conf : Type := Code * Memory * Acc.
