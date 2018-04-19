@@ -1,10 +1,12 @@
 (** Calculation of the simple arithmetic language. *)
 
+Require Import List.
 Require Import Tactics.
-Require Export Memory.
+Require Import Coq.Program.Equality.
 Module Arith (mem : Memory).
 Import mem.
 
+  
 (** * Syntax *)
 
 Inductive Expr : Set := 
@@ -29,86 +31,122 @@ Inductive Code : Set :=
 
 Fixpoint comp' (x : Expr) (r : adr) (c : Code) : Code :=
   match x with
-  | Val n => LOAD n c
-  | Add x1 x2 => comp' x1 r (STORE r (comp' x2 (next r) (ADD r c)))
+    Val n => LOAD n c
+  | Add e1 e2 => comp' e1 r (STORE r (comp' e2 (next r) (ADD r c)))
   end.
 
-Definition comp (x : Expr) : Code := comp' x first HALT.
+Definition comp (x : Expr) : Code := comp' x adr0 HALT.
 
 (** * Virtual Machine *)
 
-Definition Memory : Type := Mem.
-Definition Acc : Type := nat.
+Inductive Conf : Type := conf : Code -> nat -> Mem nat -> Conf.
 
-Definition Conf : Type := Code * Memory * Acc.
+Notation "⟨ x , y , z ⟩" := (conf x y z).
 
 Reserved Notation "x ==> y" (at level 80, no associativity).
 Inductive VM : Conf -> Conf -> Prop :=
-| vm_load n c m a : (LOAD n c , m, a) ==> (c , m, n)
-| vm_add c r m a : (ADD r c, m, a) ==> (c, free r m, get r m + a)
-| vm_store c r m a : (STORE r c, m, a) ==> (c, set r a m, a)
+| vm_load n a c s : ⟨LOAD n c, a , s⟩ ==> ⟨c , n,  s⟩
+| vm_add c s a r n : get r s = Some n -> ⟨ADD r c, a , s⟩ ==> ⟨c , n + a,  s⟩
+| vm_store c s a r : ⟨STORE r c, a , s⟩ ==> ⟨c , a,  set r a s⟩
 where "x ==> y" := (VM x y).
+
+Module Mem := MemoryTheory mem.
+Export Mem.
+
+Inductive cle : Conf -> Conf -> Prop :=
+  | cle_mem c a s s' : s =< s' -> cle ⟨c, a , s⟩ ⟨c, a , s'⟩.
+
+Lemma monotone_machine_step : forall (C1 C1' C2 : Conf),
+  cle C1 C1' ->
+  C1 ==> C2 ->
+  exists C2', C1' ==> C2' /\ cle C2 C2' .
+Proof.
+  intros C1 C1' C2 Hle Step.
+  destruct Step;inversion Hle; inversion Hle;
+    eexists; split; econstructor ; eauto using memle_get, set_monotone.
+Qed.
+
 
 (** * Calculation *)
 
 (** Boilerplate to import calculation tactics *)
 
-Module VM <: Preorder.
+Module VM <: Machine.
 Definition Conf := Conf.
-Definition VM := VM.
+Definition Rel := VM.
+Definition cle := cle.
+Definition monotone := monotone_machine_step.
 End VM.
-Module VMCalc := Calculation VM.
+Module VMCalc := Calculation VM mem.
 Import VMCalc.
+
 
 (** Specification of the compiler *)
 
-Theorem spec x r c a m :
-  freeFrom r m ->
-  (comp' x r c, m, a) =>> (c , m, eval x).
+Theorem spec e r a c P : rProp r P -> { s , ⟨comp' e r c, a, s⟩ | P s } =|> {s , ⟨c , eval e, s⟩ | P s } .
+
 
 (** Setup the induction proof *)
 
 Proof.
   intros.
   generalize dependent c.
-  generalize dependent m.
+  generalize dependent P.
   generalize dependent r.
   generalize dependent a.
-  induction x;intros.
+  induction e;intros.
 
 (** Calculation of the compiler *)
 
 (** - [x = Val n]: *)
 
   begin
-  (c, m, n).
+    ({s , ⟨ c, eval (Val n), s ⟩ | P s}).
+  ⊇ { auto }
+    ({s , ⟨ c, n, s⟩ | P s}).
   <== { apply vm_load }
-  (LOAD n c, m, a).
+    ({s , ⟨ LOAD n c, a, s ⟩ | P s}).
+  ⊇ { auto using eqr_refl }
+    ({s , ⟨ LOAD n c, a, s ⟩ | P s}).
   [].
 
 (** - [x = Add x1 x2]: *)
-
+  
   begin
-    (c, m, eval x1 + eval x2).
-  = {rewrite freeFrom_free, get_set}
-    (c, free r (set r (eval x1) m), get r (set r (eval x1) m)  + eval x2).
-  <== {apply vm_add}
-    (ADD r c, set r (eval x1) m, eval x2).
-  <<= {apply IHx2; auto using freeFrom_set}
-    (comp' x2 (next r) (ADD r c), set r (eval x1) m, eval x1).
-  <== {apply vm_store}
-    (STORE r (comp' x2 (next r) (ADD r c)), m, eval x1).
-  <<= { apply IHx1}
-    (comp' x1 r (STORE r (comp' x2 (next r) (ADD r c))), m, a).
+    ({s, ⟨ c, eval (Add e1 e2), s ⟩ | P s}).
+  ⊇ {auto}
+    ({s, ⟨ c, eval e1 + eval e2, s ⟩ | P s}).
+  ⊇ {eauto}
+    ({ s, ⟨c, get r s + eval e2, s⟩ | get r s = eval e1 /\ P s }).
+  <== { apply vm_add}
+    ({ s, ⟨ADD r c, eval e2, s⟩ | get r s = eval e1 /\ P s }).
+  <|= {apply IHe2;eauto}
+   ({ s, ⟨comp' e2 (next r) (ADD r c), eval e1, s⟩ | get r s = eval e1 /\ P s }).
+  ⊇ {try (rewrite <- rProp_set); eauto using get_set}
+    ({s, ⟨comp' e2 (next r) (ADD r c), eval e1, set r (eval e1) s⟩ | P s }).
+  <== { apply vm_store}
+    ({ s, ⟨STORE r (comp' e2 (next r) (ADD r c)), eval e1, s⟩ | P(s) }).
+  <|= { apply IHe1 }
+    ({ s, ⟨comp' e1 r (STORE r (comp' e2 (next r) (ADD r c))), a, s⟩ | P(s) }).
   [].
+Qed.
+
+
+(* Specialise the spec to singleton sets. *)
+Corollary spec' e r a c s :
+  exists s', ⟨comp' e r c, a, s⟩  =>> ⟨c , eval e, s'⟩ /\ s =[r] s'.
+Proof.
+  pose (spec e r a c (fun s' => s =[r] s')) as S. premise S. eapply rProp_eqr.
+  pose (S (⟨comp' e r c, a, s⟩)) as S'. simpl in S'. premise S'. eexists. split;eauto. 
+  repeat autodestruct; subst; eexists; eauto.
 Qed.
 
 
 (** * Soundness *)
   
-(** Since the VM is defined as a small step operational semantics, we
-have to prove that the VM is deterministic and does not get stuck in
-order to derive soundness from the above theorem. *)
+(** Since the VM is defined as a small step operational semantics, we *)
+(* have to prove that the VM is deterministic and does not get stuck in *)
+(* order to derive soundness from the above theorem. *)
 
 
 Lemma determ_vm : determ VM.
@@ -116,12 +154,12 @@ Lemma determ_vm : determ VM.
 Qed.
 
 
-Theorem sound x a C : (comp x, empty, a) =>>! C -> C = (HALT , empty, eval x).
+Theorem sound x a s C : ⟨comp x, a, s⟩ =>>! C -> exists s', C = ⟨HALT, eval x, s'⟩.
 Proof.
   intros.
-  pose (spec x first HALT) as H'. unfold comp in *. pose (determ_trc determ_vm) as D.
-  unfold determ in D. eapply D. apply H. split. apply H'. apply freeFrom_first. intro Contra. destruct Contra.
-  inversion H0.
+  pose (spec' x adr0 a HALT s) as H'. repeat autodestruct. unfold comp in *. pose (determ_trc determ_vm) as D.
+  unfold determ in D. eexists. eapply D. apply H. split. apply H0. intro Contra. destruct Contra.
+  inversion H2.
 Qed.
 
 End Arith.

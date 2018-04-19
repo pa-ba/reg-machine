@@ -64,18 +64,18 @@ Inductive Elem : Set :=
 
 Inductive Conf : Type :=
 | conf : Code -> nat -> Mem Elem -> Han -> Conf
-| fail : Mem Elem -> Han -> Conf.
+| fail : nat -> Mem Elem -> Han -> Conf.
 
 Notation "⟨ x , y , z , p ⟩" := (conf x y z p).
-Notation "⟪ x , y ⟫" := (fail x y).
+Notation "⟪ x , y , z ⟫" := (fail x y z).
 
 Reserved Notation "x ==> y" (at level 80, no associativity).
 Inductive VM : Conf -> Conf -> Prop :=
 | vm_load n a c s p : ⟨LOAD n c, a , s, p⟩ ==> ⟨c , n,  s, p⟩ 
 | vm_add c s a r n p : get r s = NUM n -> ⟨ADD r c, a , s, p⟩ ==> ⟨c , n + a,  s, p⟩
 | vm_store c s a r p : ⟨STORE r c, a , s, p⟩ ==> ⟨c , a,  set r (NUM a) s, p⟩
-| vm_throw a s p : ⟨THROW, a , s, p⟩ ==> ⟪s, p⟫
-| vm_fail p p' s c : get p s = HAN c p' -> ⟪s, Some p⟫ ==> ⟨c, 0, s, p'⟩
+| vm_throw a s p : ⟨THROW, a , s, p⟩ ==> ⟪a, s, p⟫
+| vm_fail p p' a s c : get p s = HAN c p' -> ⟪a, s, Some p⟫ ==> ⟨c, a, s, p'⟩
 | vm_unmark p p' s a c c' : get p s = HAN c' p' -> ⟨UNMARK c, a, s, Some p⟩ ==> ⟨c, a, s, p'⟩
 | vm_mark p r s a c c' : ⟨MARK r c' c, a, s, p⟩ ==> ⟨c, a, set r (HAN c' p) s, Some r⟩
 where "x ==> y" := (VM x y).
@@ -96,7 +96,7 @@ Import VMCalc.
 Theorem spec e r c p P : (forall a, rProp r (P a)) ->
   {s a, ⟨comp' e r c, a, s, p⟩ | P a s }
     =|> {s a n, ⟨c , n, s, p⟩ | P a s /\ eval e = Some n}
-    ∪   {s a, ⟪s, p⟫ | P a s /\ eval e = None}.
+    ∪   {s a, ⟪a, s, p⟫ | P a s /\ eval e = None}.
 
 
 (** Setup the induction proof *)
@@ -115,7 +115,7 @@ Proof.
 
   begin
     ({s a n', ⟨ c, n', s, p ⟩ | P a s /\ eval (Val n) = Some n'}
-       ∪ {s a, ⟪ s, p ⟫ | P a s /\ eval (Val n) = None}).
+       ∪ {s a, ⟪ a, s, p ⟫ | P a s /\ eval (Val n) = None}).
   ⊇ { eauto }
     ({s a , ⟨ c, n, s, p ⟩ | P a s}).
   <== { apply vm_load }
@@ -128,26 +128,26 @@ Proof.
 
   begin
     ({s a n, ⟨ c, n, s, p ⟩ | P a s /\ eval (Add e1 e2) = Some n}
-    ∪ {s a , ⟪ s, p ⟫ | P a s /\ eval (Add e1 e2) = None}).
+    ∪ {s a , ⟪ a, s, p ⟫ | P a s /\ eval (Add e1 e2) = None}).
   ⊇ {eauto}
     ({s a m n , ⟨ c, m + n, s, p ⟩ | P a s /\ eval e1 = Some m /\ eval e2 = Some n}
-     ∪ {s a, ⟪ s, p ⟫ |P a s /\ eval e1 = None}
-     ∪ {s a m, ⟪ s, p ⟫ |P a s /\ eval e1 = Some m /\ eval e2 = None}
+     ∪ {s a, ⟪ a, s, p ⟫ |P a s /\ eval e1 = None}
+     ∪ {s a m, ⟪ a, s, p ⟫ |P a s /\ eval e1 = Some m /\ eval e2 = None}
     ).
   ⊇ {eauto}
     ({s a m n , ⟨ c, m + n, s, p ⟩ | get r s = NUM m /\ P a s /\ eval e1 = Some m /\ eval e2 = Some n}
-     ∪ {s a, ⟪ s, p ⟫ | P a s /\ eval e1 = None}
-     ∪ {s a m, ⟪ s, p ⟫ | P a s /\ eval e1 = Some m /\ eval e2 = None}
+     ∪ {s a, ⟪ a, s, p ⟫ | P a s /\ eval e1 = None}
+     ∪ {s a m, ⟪ a, s, p ⟫ | P a s /\ eval e1 = Some m /\ eval e2 = None}
     ).
   <== { apply vm_add}
     ({s a m n , ⟨ ADD r c, n, s, p ⟩ | get r s = NUM m /\ P a s /\ eval e1 = Some m /\ eval e2 = Some n}
-     ∪ {s a, ⟪ s, p ⟫ | P a s /\ eval e1 = None}
-     ∪ {s a m, ⟪ s, p ⟫ | P a s /\ eval e1 = Some m /\ eval e2 = None}
+     ∪ {s a, ⟪ a, s, p ⟫ | P a s /\ eval e1 = None}
+     ∪ {s a m, ⟪a , s, p ⟫ | P a s /\ eval e1 = Some m /\ eval e2 = None}
     ).
   ⊇ { eauto }
     ({s m n , ⟨ ADD r c, n, s, p ⟩ | (get r s = NUM m /\ (exists a, P a s) /\ eval e1 = Some m) /\ eval e2 = Some n}
-     ∪ {s m, ⟪ s, p ⟫ | (get r s = NUM m /\ (exists a, P a s) /\ eval e1 = Some m) /\ eval e2 = None}
-     ∪ {s a, ⟪ s, p ⟫ | P a s /\ eval e1 = None}
+     ∪ {s  m, ⟪ a, s, p ⟫ | (get r s = NUM m /\ (exists a, P a s) /\ eval e1 = Some m) /\ eval e2 = None}
+     ∪ {s a, ⟪ a, s, p ⟫ | P a s /\ eval e1 = None}
     ).
   <|= {apply IHe2}
       ({s m, ⟨comp' e2 (next r) (ADD r c), m, s, p ⟩ | get r s = NUM m /\ (exists a, P a s) /\ eval e1 = Some m }

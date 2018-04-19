@@ -2,12 +2,13 @@ Module Type Machine.
 Parameter Conf : Type.
 Parameter Rel : Conf -> Conf -> Prop.
 End Machine.
-
+Require Import List.
+Require Import Relations.
 Module MetaTheory (mod : Machine).
 Import mod.
-Require Import List.
+
 Import ListNotations.
-Require Import Relations.
+
 
 Infix "==>" := Rel(at level 80, no associativity).
 

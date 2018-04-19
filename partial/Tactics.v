@@ -1,144 +1,150 @@
 Definition Admit {A} : A. admit. Admitted.
 
-Ltac rewr_assumption := idtac; match goal with
-                          | [R: _ = _ |- _ ] => first [rewrite R| rewrite <- R]
-                        end.
+Ltac premise H := match type of  H with
+                    forall (_ : ?A), _  =>
+                    let P := fresh in assert A as P;[idtac | specialize (H P);clear P]
+                  end.
 
+Ltac autodestruct := match goal with
+                     | [ H : _ /\ _ |- _] => destruct H
+                     | [ H : exists _ , _ |- _] => destruct H
+                     | [ H : Some _ = Some _ |- _] => inversion H; clear H
+                     | [ H : Some _ = None |- _] => inversion H
+                     | [ H : None = Some _ |- _] => inversion H
+                     end.
 
-Module Type Preorder.
+Require Import List.
 
-Parameter Conf : Type.
-Parameter VM : Conf -> Conf -> Prop.
+Require Export Machine.
+Require Export Memory.
+Module Calculation (mod : Machine) (mem: Memory).
+Module Meta := MetaTheory mod.
+Export Meta.
+Module Mem := MemoryTheory mem.
+Export Mem.
 
-End Preorder.
-
-Module Calculation (Ord : Preorder).
-Import Ord.
-
-Notation "x ==> y" := (VM x y) (at level 80, no associativity).
-
-Reserved Notation "x =>> y" (at level 80, no associativity).
-Inductive trc : Conf -> Conf -> Prop :=
-| trc_refl c : c =>> c
-| trc_step_trans c1 c2 c3 : c1 ==> c2 -> c2 =>> c3 -> c1 =>> c3
- where "x =>> y" := (trc x y).
-
-
-Lemma trc_step c1 c2 : c1 ==> c2 -> c1 =>> c2.
-Proof.
-  intros.
-  eapply trc_step_trans. eassumption. apply trc_refl.
-Qed.
-
-Lemma trc_trans c1 c2 c3 : c1 =>> c2 -> c2 =>> c3 -> c1 =>> c3.
-Proof.
-  intros T S.
-  induction T. assumption. eapply trc_step_trans. eassumption. apply IHT.  assumption. 
-Qed.
-
-
-Corollary trc_step_trans' c1 c2 c3 : c1 =>> c2 -> c2 ==> c3 -> c1 =>> c3.
-Proof.
-  intros. eapply trc_trans. eassumption. apply trc_step. assumption.
-Qed.
-
-Corollary trc_eq_trans c1 c2 c3 : c1 =>> c2 -> c2 = c3 -> c1 =>> c3.
-Proof.
-  intros. eapply trc_trans. eassumption. subst. apply trc_refl. 
-Qed.
-
-Ltac smart_destruct x := first[is_var x;destruct x| let x' := fresh in remember x as x'; destruct x' ].
-
-Ltac dist t := idtac; subst; simpl; try solve [t;try rewr_assumption;auto|apply trc_step;t;eauto
-                                        |apply trc_refl;t;eauto] ; match goal with
-                        | [ H : ex _ |- _ ] => destruct H; dist t
-                        | [ H : or _ _ |- _ ] => destruct H; dist t
-                        | [ |- context [let _ := ?x in _] ] => smart_destruct x;dist t
-                        | [ |- context [match ?x with _ => _ end]] => smart_destruct x; dist t
-                      end.
-
-Ltac dist_refl := dist reflexivity.
-
-
-Ltac check_exp' x y t := let h := fresh "check" in assert (h: x = y) by t; try rewrite <- h; clear h.
-Ltac check_exp x y := let h := fresh "check" in assert (h: x = y) by reflexivity; clear h.
-
-Ltac check_rel R Rel := first [check_exp R Rel|
-                             fail 2 "wrong goal; expected relation" R "but found" Rel].
-
-
-
-Tactic Notation "[]" := apply trc_refl.
+Import ListNotations.
 
 
 
 
-Ltac step rel lem t1 e2 :=
-  match goal with
-    | [|- ?Rel ?lhs ?rhs] => check_rel trc Rel;
-        first [let h := fresh "rewriting" in 
-               assert(h : rel e2 rhs) by (dist t1) ; apply (fun x => lem _ _ _ x h); clear h | fail 2]
-    | _ => fail 1 "goal is not a VM"
-    end.
-
-Tactic Notation  (at level 2)    "<<=" "{"tactic(t) "}" constr(e) := 
-  step trc trc_trans t e.
-
-Tactic Notation  (at level 2)    "=" "{"tactic(t) "}" constr(e) := 
-  step (@eq Conf) trc_eq_trans t e.
-
-Tactic Notation  (at level 2)    "<==" "{"tactic(t) "}" constr(e) := 
-  step VM trc_step_trans' t e.
-
-Ltac step_try rel e2 :=
-  match goal with
-    | [|- ?Rel ?lhs ?rhs] => check_rel trc Rel; 
-                            first [let h := fresh "step_try" in assert(h : rel e2 rhs)|fail 2]
-    | _ => fail 1 "goal is not a VM"
-  end.
-
-Tactic Notation  (at level 2)    "<<=" "{?}" constr(e) := step_try trc e.
-Tactic Notation  (at level 2)    "<==" "{?}" constr(e) := step_try VM e.
-Tactic Notation  (at level 2)    "=" "{?}" constr(e) := step_try (@eq Conf) e.
-
-Tactic Notation  (at level 2)    "<==" "{"tactic(t1) "}?"  := 
-  match goal with
-    | [|- ?Rel ?lhs ?rhs] => check_rel trc Rel;
-        first [eapply trc_trans; [idtac|solve[t1]] | fail 2]
-      | _ => fail 1 "goal is not a VM"
-    end.
-
-Tactic Notation  (at level 2)  "begin" constr(rhs) :=  match goal with
-    | [|- ?Rel ?lhs ?rhs'] => check_rel trc Rel; check_exp' rhs rhs' dist_refl
-      | _ => fail 1 "rhs does not match"
-    end.
-
-Definition determ {A} (R : A -> A -> Prop) : Prop := forall C C1 C2, R C C1 -> R C C2 -> C1 = C2.
+Ltac destruct_tuple := idtac; match goal with
+  | [l : tuple nil |- _ ] => destruct l; destruct_tuple
+  | [l : tuple (_ :: _) |- _ ] => destruct l; destruct_tuple
+  | _ => idtac
+end.
 
 
-Definition trc' C C' :=  C =>> C' /\ ~ exists C'', C' ==> C''.
+(* Ltac rProp_solve := *)
+(*   match goal with *)
+(*   | [|- forall _, _ ] => intro; rProp_solve *)
+(*   | [|- rProp _ _ ] => *)
+(*     first [solve [eauto]| apply rProp_get; eauto| apply rProp_eqr | apply rProp_const | apply rProp_lea; eauto| *)
+(*            first [apply rProp_conj | apply rProp_disj | apply rProp_impl | apply rProp_ex]; rProp_solve ] *)
+(*   | _ => idtac *)
+(*   end. *)
 
-Notation "x =>>! y" := (trc' x y) (at level 80, no associativity).
-
-
-Lemma determ_factor C1 C2 C3 : determ VM -> C1 ==> C2 -> C1 =>>! C3 -> C2 =>> C3.
-Proof.
-  unfold determ. intros. destruct H1.
-  destruct H1. exfalso. apply H2. eexists. eassumption.
-
-  assert (c2 = C2). eapply H. apply H1. apply H0. subst. assumption.
-Qed.
+(* Ltac lift_union t := first [apply Reach_union; first [apply Reach_refl| lift_union t]| t;rProp_solve]. *)
 
 
-Lemma determ_trc : determ VM -> determ trc'.
-Proof.
-  intros. unfold determ. intros. destruct H0. 
-  induction H0. 
 
-  destruct H1. destruct H0. reflexivity. exfalso. apply H2. eexists. eassumption.
 
-  apply IHtrc. apply H2. split. eapply determ_factor; eassumption. destruct H1. assumption.
-Qed.
+(* Ltac eval_inv ev := let do_inv e H := (first [is_var e; fail 1|inversion H; subst; clear H]) *)
+(*                     in idtac; match goal with *)
+(*                           | [ H: ev ?e _ |- _ ] => do_inv e H *)
+(*                           | [ H: ev ?e _ _ |- _ ] => do_inv e H *)
+(*                           | [ H: ev ?e _ _ _ |- _ ] => do_inv e H *)
+(*                           | [ H: ev ?e _ _ _ _ |- _ ] => do_inv e H *)
+(*                           | _ => eauto *)
+(*                         end. *)
 
+(* Ltac dist' ev := simpl in *; intros; subst; ev; *)
+(*                  match goal with *)
+(*                    | [ H: and _ _ |- _ ] => destruct H; dist' ev *)
+(*                    | [ H: ex _ |- _ ] => destruct H; dist' ev *)
+(*                    | [ H: or _ _ |- _ ] => destruct H; dist' ev *)
+(*                    | [ H: eq _ _ |- _ ] => rewrite H in *; dist' ev *)
+(*                    | [ |- and _ _ ] => split; repeat dist' ev *)
+(*                    | [ |- _ <-> _ ] => split; dist' ev *)
+(*                    | [ |- ex _ ] => eexists; dist' ev *)
+(*                    | [ |- or _ _] => solve [right;dist' ev|left; dist' ev]  *)
+(*                    | _ => idtac *)
+(*                  end. *)
+
+(* Ltac dist := dist' eauto. *)
+
+
+
+(* Ltac check_exp x y := let h := fresh "check" in assert (h: x = y) by reflexivity; clear h. *)
+
+(* Ltac check_rel Bidir Rel := first [check_exp Bidir Rel| *)
+(*                              fail 2 "wrong goal; expected relation =>> but found" Rel]. *)
+
+(* Tactic Notation "[]" := apply Reach_refl. *)
+
+
+(* Tactic Notation  (at level 2)    "⊇" "{?}" constr(e2) :=  *)
+(*   match goal with *)
+(*     | [|- ?Rel ?lhs ?rhs] => check_rel Reach Rel; *)
+(*                             let h := fresh "rewriting" in  *)
+(*                             assert(h : forall c, c ∈ e2  -> c ∈ rhs) *)
+(*       | _ => fail 1 "goal is not a VM" *)
+(*     end. *)
+
+
+
+(* Tactic Notation  (at level 2)    "<|=" "{?}" constr(e2) :=  *)
+(*   match goal with *)
+(*     | [|- ?Rel ?lhs ?rhs] => check_rel Reach Rel; *)
+(*         first [let h := fresh "rewriting" in  *)
+(*                assert(h : Reach e2 rhs) | fail 2] *)
+(*       | _ => fail 1 "goal is not a VM" *)
+(*     end. *)
+
+(* Tactic Notation  (at level 2)    "<|=" "{"tactic(t1) "}" constr(e2) :=  *)
+(*   match goal with *)
+(*     | [|- ?Rel ?lhs ?rhs] => check_rel Reach Rel; *)
+(*         first [let h := fresh "rewriting" in  *)
+(*                assert(h : Reach e2 rhs) by (lift_union t1);  *)
+(*                  apply (fun x => Reach_trans _ _ _ x h); clear h | fail 2] *)
+(*       | _ => fail 1 "goal is not a VM" *)
+(*     end. *)
+
+(* Tactic Notation  (at level 2)    "<|=" "{{"tactic(t1) "}}" constr(e2) :=  *)
+(*   match goal with *)
+(*     | [|- ?Rel ?lhs ?rhs] => check_rel Reach Rel; *)
+(*         first [let h := fresh "rewriting" in  *)
+(*                assert(h : Reach e2 rhs) by t1;  *)
+(*                  apply (fun x => Reach_trans _ _ _ x h); clear h | fail 2] *)
+(*       | _ => fail 1 "goal is not a VM" *)
+(*     end. *)
+
+(* Tactic Notation  (at level 2)    "<|=" "{"tactic(t1) "}?"  :=  *)
+(*   match goal with *)
+(*     | [|- ?Rel ?lhs ?rhs] => check_rel Reach Rel; *)
+(*         first [eapply Reach_trans; [idtac|solve[t1]] | fail 2] *)
+(*       | _ => fail 1 "goal is not a VM" *)
+(*     end. *)
+
+
+(* Tactic Notation  (at level 2)    "⊇" "{"tactic(t) "}" constr(e) :=  *)
+(*   <|= {{ apply Reach_refl_if; dist' t }} e . *)
+
+(* Ltac Reach_repeat := first [apply Reach_step' |  *)
+(*                             first [apply Reach_assoc1 | apply Reach_assoc2| apply Reach_comm]; Reach_repeat *)
+(*                             ]. *)
+
+(* Ltac Reach_search := first [apply Reach_step_simp | Reach_repeat]. *)
+
+
+
+(* Tactic Notation  (at level 2)    "<==" "{" tactic(t) "}" constr(e) :=  *)
+(*   <|= {{  Reach_search; intro; destruct_tuple; simpl; intros; [t;dist | dist] }} e. *)
+
+(* Tactic Notation  (at level 2)  "begin" constr(rhs) := *)
+(*   match goal with *)
+(*     | [|- ?Rel ?lhs ?rhs'] => check_rel Reach Rel; check_exp rhs rhs' *)
+(*     | _ => fail 1 "rhs does not match" *)
+(*   end. *)
 
 End Calculation.
