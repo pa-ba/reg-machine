@@ -17,8 +17,8 @@ Require Import List.
 
 Require Export Machine.
 Require Export Memory.
-Module Calculation (mod : Machine) (mem: Memory).
-Module Meta := MetaTheory mod.
+Module Calculation (mem: Memory) (mod : Machine mem).
+Module Meta := MetaTheory mem mod.
 Export Meta.
 Module Mem := MemoryTheory mem.
 Export Mem.
@@ -28,14 +28,14 @@ Import ListNotations.
 
 
 
-Ltac destruct_tuple := idtac; match goal with
-  | [l : tuple nil |- _ ] => destruct l; destruct_tuple
-  | [l : tuple (_ :: _) |- _ ] => destruct l; destruct_tuple
-  | _ => idtac
-end.
+(* Ltac destruct_tuple := idtac; match goal with *)
+(*   | [l : tuple nil |- _ ] => destruct l; destruct_tuple *)
+(*   | [l : tuple (_ :: _) |- _ ] => destruct l; destruct_tuple *)
+(*   | _ => idtac *)
+(* end. *)
 
 
-(* Ltac rProp_solve := *)
+(* ltac rProp_solve := *)
 (*   match goal with *)
 (*   | [|- forall _, _ ] => intro; rProp_solve *)
 (*   | [|- rProp _ _ ] => *)

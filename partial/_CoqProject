@@ -1,4 +1,5 @@
--Q . "" Machine.v
--Q . "" Memory.v
--Q . "" Tactics.v
--Q . "" Arith.v
+-R . Comp
+Machine.v
+Memory.v
+Tactics.v
+Arith.v

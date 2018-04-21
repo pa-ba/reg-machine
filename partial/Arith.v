@@ -39,12 +39,12 @@ Definition comp (x : Expr) : Code := comp' x adr0 HALT.
 
 (** * Virtual Machine *)
 
-Inductive Conf : Type := conf : Code -> nat -> Mem nat -> Conf.
+Inductive Conf : Type := conf : Code -> nat -> Conf.
 
-Notation "⟨ x , y , z ⟩" := (conf x y z).
+Notation "⟨ x , y , z ⟩" := (conf x y, z).
 
 Reserved Notation "x ==> y" (at level 80, no associativity).
-Inductive VM : Conf -> Conf -> Prop :=
+Inductive VM : Conf * Mem nat -> Conf * Mem nat -> Prop :=
 | vm_load n a c s : ⟨LOAD n c, a , s⟩ ==> ⟨c , n,  s⟩
 | vm_add c s a r n : get r s = Some n -> ⟨ADD r c, a , s⟩ ==> ⟨c , n + a,  s⟩
 | vm_store c s a r : ⟨STORE r c, a , s⟩ ==> ⟨c , a,  set r a s⟩
@@ -53,17 +53,15 @@ where "x ==> y" := (VM x y).
 Module Mem := MemoryTheory mem.
 Export Mem.
 
-Inductive cle : Conf -> Conf -> Prop :=
-  | cle_mem c a s s' : s =< s' -> cle ⟨c, a , s⟩ ⟨c, a , s'⟩.
 
-Lemma monotone_machine_step : forall (C1 C1' C2 : Conf),
-  cle C1 C1' ->
-  C1 ==> C2 ->
-  exists C2', C1' ==> C2' /\ cle C2 C2' .
+Lemma monotone_machine_step : forall (C1 C2 : Conf) (m1 m2 m1' : Mem nat),
+  m1 ≤ m1' ->
+  (C1, m1) ==> (C2, m2)  ->
+  exists m2', (C1, m1') ==> (C2, m2') /\ m2 ≤ m2'.
 Proof.
-  intros C1 C1' C2 Hle Step.
-  destruct Step;inversion Hle; inversion Hle;
-    eexists; split; econstructor ; eauto using memle_get, set_monotone.
+  do 5 intro. intros Hle Step.
+  dependent destruction Step;
+  eexists; (split; [econstructor| idtac]) ; eauto using memle_get, set_monotone.
 Qed.
 
 
@@ -71,13 +69,13 @@ Qed.
 
 (** Boilerplate to import calculation tactics *)
 
-Module VM <: Machine.
+Module VM <: (Machine mem).
 Definition Conf := Conf.
 Definition Rel := VM.
-Definition cle := cle.
+Definition MemElem := nat.
 Definition monotone := monotone_machine_step.
 End VM.
-Module VMCalc := Calculation VM mem.
+Module VMCalc := Calculation mem VM.
 Import VMCalc.
 
 
