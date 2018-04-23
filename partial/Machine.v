@@ -3,8 +3,6 @@ Require Export Memory.
 
 Module Type Machine (mem: Memory).
 Export mem.
-Module mt := MemoryTheory mem.
-Export mt.
 Parameter Conf : Type.
 Parameter MemElem : Type.
 Parameter Rel : Conf * (Mem MemElem) -> Conf * (Mem MemElem) -> Prop.
@@ -19,16 +17,19 @@ Require Import Relations.
 
 Module MetaTheory (mem: Memory) (machine : Machine mem).
 Export machine.
+Module mt := MemoryTheory mem.
+Export mt.  
 Import ListNotations.
 
 Definition Config := (Conf * Mem MemElem)%type.
 
-Infix "==>" := Rel(at level 80, no associativity).
+Infix "==>" := Rel(at level 80, no associativity) : machine_scope.
 
 Definition trc := clos_refl_trans Config Rel.
 
-Infix "=>>" := trc (at level 80, no associativity).
+Infix "=>>" := trc (at level 80, no associativity) : machine_scope.
 
+Open Scope machine_scope.
 
 Lemma trc_refl c : c =>> c.
 Proof. apply rt_refl. Qed.
@@ -66,8 +67,6 @@ Infix "≤" := cle  (at level 70) : machine_scope.
 Notation "x ≥ y" := (cle y x) (at level 70) : machine_scope.
 
 Hint Constructors cle.
-
-Open Scope machine_scope.
 
 Lemma cle_trans (C1 C2 C3 : Config) : C1 ≤ C2 -> C2 ≤ C3 -> C1 ≤ C3.
 Proof.
@@ -108,7 +107,8 @@ Infix "=|>" := Reach (at level 80, no associativity).
 Lemma Reach_refl C : C =|> C.
 Proof.
   exists C. destruct C. split; auto.
-Qed. 
+Qed.
+
 
 Lemma Reach_trans C1 C2 C3 : C1 =|> C2 -> C2 =|> C3 -> C1 =|> C3.
 Proof.
@@ -131,5 +131,41 @@ Proof.
   intros L. eexists. split. eassumption. apply cle_refl. 
 Qed.
 
+Lemma Reach_vm C1 C2 : C1 ==> C2 -> C1 =|> C2.
+Proof.
+  intros L. apply Reach_trc. apply trc_step. assumption.
+Qed.
+
+
+
+Lemma Reach_eq C1 C2 : C1 = C2 -> C1 =|> C1.
+Proof.
+  intros E. rewrite E. apply Reach_refl.
+Qed.
+
+Definition determ {A} (R : A -> A -> Prop) : Prop := forall C C1 C2, R C C1 -> R C C2 -> C1 = C2.
+
+Definition trc' C C' :=  C =>> C' /\ ~ exists C'', C' ==> C''.
+
+Notation "x =>>! y" := (trc' x y) (at level 80, no associativity).
+
+
+Lemma determ_factor C1 C2 C3 : determ Rel -> C1 ==> C2 -> C1 =>>! C3 -> C2 =>> C3.
+Proof.
+  unfold determ. intros. destruct H1.
+  destruct H1 using trc_ind'.
+  - exfalso. apply H2. eexists. eassumption.
+  - assert (c2 = C2). eapply H. apply H1. apply H0. subst. auto.
+Qed.
+
+
+Lemma determ_trc : determ Rel -> determ trc'.
+Proof.
+  intros. unfold determ. intros. destruct H0. induction H0 using trc_ind'. 
+  - destruct H1. destruct H0 using trc_ind'. reflexivity. exfalso. apply H2. eexists. eassumption.
+  - apply IHtrc. apply H2. split. eapply determ_factor; eassumption. destruct H1. assumption.
+Qed.
+
+Close Scope memory_scope.
 
 End MetaTheory.

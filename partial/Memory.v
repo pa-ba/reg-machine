@@ -17,7 +17,9 @@ Parameter dec_eq : forall (r r' : adr),  {r  = r'} + { r <> r'}.
 
 Hint Constructors lta.
 
-Infix "<" := (lta adr next) (at level 70).
+Infix "<" := (lta adr next) (at level 70) : memory_scope.
+
+Open Scope memory_scope.
 
 Axiom next_fresh : forall (r r' : adr), r < r' -> r <> r'.
 
@@ -36,6 +38,14 @@ Axiom set_get : forall T (r : adr) (v : T) (s :  Mem T),
     get r s = Some v -> set r v  s = s.
 
 
+Notation "r ∈ s" := (exists v, get r s = Some v) (at level 70) : memory_scope.
+Notation "x ∉ y" := (~(x ∈ y)) (at level 70) : memory_scope.
+
+Notation "s ≤ t" := (forall r, r ∈ s -> get r s = get r t) (at level 70) : memory_scope.
+Notation "s ≥ t" := (t ≤ s) (at level 70) : memory_scope.
+
+Notation "r <= r'" := (r < r' \/ r = r') (at level 70) : memory_scope.
+
 End Memory.
 
 Require Import Setoid.  
@@ -44,28 +54,8 @@ Module MemoryTheory (mem : Memory).
 Export mem.
 
 
-Definition dom {T} (s : Mem T) (r : adr) : Prop
-  := exists v, get r s = Some v.
 
-
-Notation "x ∈ y" := (@dom _ y x) (at level 70).
-Notation "x ∉ y" := (~(x ∈ y)) (at level 70).
-
-Infix "≤" := memle  (at level 70) .
-Notation "x ≥ y" := (memle y x) (at level 70).
-
-Definition lea r r' := r < r' \/ r = r'.
-
-Infix "<=" := lea.
-
-Definition freeFrom {T} (r : adr) (s : Mem T) := forall r', r <= r' -> r' ∉ s.
-
-Definition memle {T} (s t : Mem T) : Prop :=
-  forall r, r ∈ s -> get r s = get r t.
-
-
-
-
+    
 
 Lemma memle_refl T (s : Mem T) : s ≤ s.
 Proof.
@@ -85,7 +75,6 @@ Qed.
 Lemma memle_dom T r (s t : Mem T) : s ≤ t -> r ∈ s -> r ∈ t.
 Proof.
   intros L D. destruct D as [v E]. eapply memle_get in E; eauto.
-  exists v. assumption.
 Qed.
 
 Lemma memle_trans T (s t u : Mem T) : s ≤ t -> t ≤ u -> s ≤ u.
@@ -93,13 +82,13 @@ Proof.
   intros L1 L2 r D. rewrite L1 by assumption. eauto using memle_dom.
 Qed. 
 
-Lemma not_memle T r (s : Mem T) : r ∉ s -> get r s = None.
-Proof.
-  intros.
-  remember (get r s) as G. destruct G.
-  - assert (exists t, get r s = Some t) as E by eauto. contradiction.
-  - reflexivity.
-Qed.
+(* Lemma not_memle T r (s : Mem T) : r ∉ s -> get r s = None. *)
+(* Proof. *)
+(*   intros. *)
+(*   remember (get r s) as G. destruct G. *)
+(*   - assert (r ∈ s) as E by eauto. contradiction. *)
+(*   - reflexivity. *)
+(* Qed. *)
 
 Lemma memle_set T r v (s : Mem T) : (r ∉ s) ->  s ≤ set r v s.
 Proof.
@@ -140,35 +129,6 @@ Qed.
 Hint Resolve lta_trans.
 
 
-Fixpoint nextN (n : nat) (r : adr) : adr :=
-  match n with
-  | 0 => r
-  | S n' => next (nextN n' r)
-  end.
-
-Notation "r + n" := (nextN n r).
-
-
-Lemma next_nextN r n : next (r + n) = next r + n.
-Proof.
-  generalize dependent r. induction n. reflexivity.
-  intros. simpl. rewrite IHn. reflexivity.
-Qed.
-
-Lemma lta_nextN r n : r < r + (S n).
-Proof.
-  induction n;simpl in *; auto.
-Qed.
-
-Lemma lta_next_eq (r r' : adr) : r < r' <-> exists n, r' = r + (S n).
-Proof.
-  split;intros.
-  - induction H.
-    + exists 0. reflexivity.
-    + destruct IHlta. exists (S x). simpl in *. subst. reflexivity.
-  - destruct H. subst. apply lta_nextN.
-Qed. 
-
 Lemma lea_lta r1 r2 r3 : r1 <= r2 -> r2 < r3 -> r1 < r3.
 Proof.
   intros R1 R2. destruct R1. eauto. subst. assumption.
@@ -181,11 +141,11 @@ Proof.
 Qed.
 
 Lemma lea_refl r : r <= r.
-Proof. unfold lea. auto. Qed.
+Proof. auto. Qed.
 
 Lemma lta_to_lea r r' : r < r' -> r <= r'.
 Proof.
-  intro. unfold "<=". tauto.
+  intro. tauto.
 Qed.
 
 Lemma lea_sym r1 r2 r3 : r1 <= r2 -> r2 <= r3 -> r1 <= r3.
@@ -198,5 +158,39 @@ Qed.
 
 Hint Resolve lta_lea lea_lta lea_sym lea_refl.
 
+
+Definition freeFrom {T} (r : adr) (s : Mem T) := forall r', r <= r' -> r' ∉ s.
+
+
+Lemma lta_next r r' : next r < r' -> r < r'.
+Proof.
+  intros L. remember (next r) as R. induction L;subst;auto.
+Qed.
+        
+Lemma lea_next_lta r r' : next r <= r' -> r < r'.
+Proof.
+  intros L. inversion L.
+  - apply lta_next. assumption.
+  - subst. auto.
+Qed.        
+
+Lemma lea_next r r' : next r <= r' -> r <= r'.
+Proof.
+  intros L. left. apply lea_next_lta. assumption.
+Qed.
+
+
+Lemma lea_next_neq r r' : next r <= r' -> r <> r'.
+Proof.
+  auto using next_fresh, lea_next_lta.
+Qed.
+
+Lemma freeFrom_set T r (v : T) s : freeFrom r s ->  freeFrom (next r) (set r v s).
+Proof.
+  intros F r' L.
+  assert (r <> r') as NE by auto using lea_next_neq.
+  intros I.
+  apply set_dom_fresh in I; eauto. apply F in I; auto. apply lea_next. assumption.
+Qed.
 
 End MemoryTheory.
