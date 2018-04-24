@@ -5,13 +5,6 @@ Ltac premise H := match type of  H with
                     let P := fresh in assert A as P;[idtac | specialize (H P);clear P]
                   end.
 
-Ltac autodestruct := match goal with
-                     | [ H : _ /\ _ |- _] => destruct H
-                     | [ H : exists _ , _ |- _] => destruct H
-                     | [ H : Some _ = Some _ |- _] => inversion H; clear H
-                     | [ H : Some _ = None |- _] => inversion H
-                     | [ H : None = Some _ |- _] => inversion H
-                     end.
 
 Require Import List.
 
@@ -23,6 +16,16 @@ Export Meta.
 
 
 Import ListNotations.
+
+Ltac autodestruct := match goal with
+                     | [ H : _ /\ _ |- _] => destruct H
+                     | [ H : exists _ , _ |- _] => destruct H
+                     | [ H : Some _ = Some _ |- _] => inversion H; clear H
+                     | [ H : Some _ = None |- _] => inversion H
+                     | [ H : None = Some _ |- _] => inversion H
+                     end.
+
+
 
 
 Ltac eval_inv ev := let do_inv e H := (first [is_var e; fail 1|inversion H; subst; clear H])

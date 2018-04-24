@@ -50,30 +50,19 @@ Inductive VM : Conf * Mem nat -> Conf * Mem nat -> Prop :=
 | vm_store c s a r : ⟨STORE r c, a , s⟩ ==> ⟨c , a,  set r a s⟩
 where "x ==> y" := (VM x y).
 
-Module Mem := MemoryTheory mem.
-Export Mem.
-
-
-Lemma monotone_machine_step : forall (C1 C2 : Conf) (m1 m2 m1' : Mem nat),
-  m1 ≤ m1' ->
-  (C1, m1) ==> (C2, m2)  ->
-  exists m2', (C1, m1') ==> (C2, m2') /\ m2 ≤ m2'.
-Proof.
-  do 5 intro. intros Hle Step.
-  dependent destruction Step;
-  eexists; (split; [econstructor| idtac]) ; eauto using memle_get, set_monotone.
-Qed.
-
 
 (** * Calculation *)
 
 (** Boilerplate to import calculation tactics *)
-Close Scope memory_scope.
+Module Mon := Monotonicity mem.
+Import Mon.
+
 Module VM <: (Machine mem).
 Definition Conf := Conf.
 Definition Rel := VM.
 Definition MemElem := nat.
-Definition monotone := monotone_machine_step.
+Lemma monotone : monotonicity VM.
+prove_monotonicity. Qed.
 End VM.
 Module VMCalc := Calculation mem VM.
 Import VMCalc.
@@ -142,8 +131,8 @@ Qed.
 Theorem sound x a s C : freeFrom adr0 s -> ⟨comp x, a, s⟩ =>>! C -> exists s', C = ⟨HALT, eval x, s'⟩.
 Proof.
   intros F M.
-  pose (spec x adr0 HALT a s F) as H'.
-  destruct H'. destruct H. unfold comp in *. pose (determ_trc determ_vm) as D.
+  pose (spec x adr0 HALT a s F). unfold Reach in *. repeat autodestruct.
+  pose (determ_trc determ_vm) as D.
   unfold determ in D. inversion H0. subst. eexists. eapply D. apply M. split. 
   apply H. intro Contra. destruct Contra.
   inversion H1.

@@ -1,6 +1,25 @@
 Require Import Coq.Program.Equality.
 Require Export Memory.
 
+Module Monotonicity (mem: Memory).
+Export mem.
+Module mt := MemoryTheory mem.
+Export mt.
+Definition monotonicity {Conf e}
+           (vm : Conf * (Mem e) -> Conf * (Mem e) -> Prop) :
+     Prop := forall (C1 C2 : Conf) (m1 m2 m1' : Mem e),
+  m1 ≤ m1' ->
+  vm (C1, m1) (C2, m2)  ->
+  exists m2', vm (C1, m1') (C2, m2') /\ m2 ≤ m2'.
+
+Ltac prove_monotonicity :=
+  do 5 intro; intros Hle Step;
+  dependent destruction Step;
+  eexists; (split; [econstructor| idtac]) ; eauto using memle_get, set_monotone.
+
+End Monotonicity.
+
+
 Module Type Machine (mem: Memory).
 Export mem.
 Parameter Conf : Type.
