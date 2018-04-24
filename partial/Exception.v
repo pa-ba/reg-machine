@@ -65,19 +65,19 @@ Inductive Elem : Set :=
 
 Inductive Conf : Type :=
 | conf : Code -> nat -> Han -> Conf
-| fail : nat -> Han -> Conf.
+| fail : Han -> Conf.
 
 
 Notation "⟨ x , y , z , s ⟩" := (conf x y z, s).
-Notation "⟪ x , y , s ⟫" := (fail x y, s).
+Notation "⟪ x , s ⟫" := (fail x, s).
 
 Reserved Notation "x ==> y" (at level 80, no associativity).
 Inductive VM : Conf * Mem Elem -> Conf * Mem Elem -> Prop :=
 | vm_load n a c s p : ⟨LOAD n c, a , p, s⟩ ==> ⟨c , n, p, s⟩ 
 | vm_add c s a r n p : s[r]=  NUM n -> ⟨ADD r c, a , p, s⟩ ==> ⟨c , n + a, p, s⟩
 | vm_store c s a r p : ⟨STORE r c, a, p, s⟩ ==> ⟨c , a, p, s[r:=NUM a]⟩
-| vm_throw a s p : ⟨THROW, a, p, s⟩ ==> ⟪a, p, s⟫
-| vm_fail p p' a s c : s[p] = HAN c p' -> ⟪a, Some p, s⟫ ==> ⟨c, a, p', s⟩
+| vm_throw a s p : ⟨THROW, a, p, s⟩ ==> ⟪p, s⟫
+| vm_fail p p' s c : s[p] = HAN c p' -> ⟪ Some p, s⟫ ==> ⟨c, 0, p', s⟩
 | vm_unmark p p' s a c c' : s[p] = HAN c' p' ->
                             ⟨UNMARK c, a, Some p, s⟩ ==> ⟨c, a, p', s⟩
 | vm_mark p r s a c c' : ⟨MARK r c' c, a, p, s⟩ ==> ⟨c, a, Some r, s[r:= HAN c' p]⟩
@@ -110,7 +110,7 @@ Theorem spec e r c a p s :
     =|>
     match eval e with
     | Some n => ⟨c , n, p, s⟩
-    | None => ⟪a, p, s⟫
+    | None => ⟪p, s⟫
     end.
 
 
@@ -132,7 +132,7 @@ Proof.
   begin
     match eval (Val n) with
     | Some n' => ⟨c , n' ,p, s⟩
-    | None => ⟪ a, p, s⟫
+    | None => ⟪p, s⟫
     end.
   = {auto}
       ⟨ c, n, p, s⟩.
@@ -145,44 +145,99 @@ Proof.
   begin
     match eval (Add e1 e2) with
     | Some n => ⟨c , n ,p, s⟩
-    | None => ⟪ a, p, s⟫
+    | None => ⟪p, s⟫
     end.
   = { auto }
     match eval e1 with
     | Some n => match eval e2 with
                 | Some n' => ⟨c , n + n' ,p, s⟩
-                | None => ⟪ a, p, s⟫
+                | None => ⟪p, s⟫
                 end
-    | None => ⟪ a, p, s⟫
+    | None => ⟪p, s⟫
     end.
   ≤ { auto }
     match eval e1 with
     | Some n => match eval e2 with
                 | Some n' => ⟨c , n + n' ,p, s[r:=NUM n]⟩
-                | None => ⟪ a, p, s[r:=NUM n]⟫
+                | None => ⟪p, s[r:=NUM n]⟫
                 end
-    | None => ⟪ a, p, s⟫
+    | None => ⟪p, s⟫
     end.
   <== {apply vm_add; eauto using get_set}
       match eval e1 with
       | Some n => match eval e2 with
                   | Some n' => ⟨ADD r c , n' ,p, s[r:=NUM n]⟩
-                  | None => ⟪ a, p, s[r:=NUM n]⟫
+                  | None => ⟪p, s[r:=NUM n]⟫
                   end
-      | None => ⟪ a, p, s⟫
+      | None => ⟪p, s⟫
       end.
-  <|= {?}
+  <|= {eauto using freeFrom_set}
       match eval e1 with
-      | Some n => ⟨comp' e2 (next r) (ADD r c) , a ,p, s[r:=NUM n]⟩
-      | None => ⟪ a, p, s⟫
+      | Some n => ⟨comp' e2 (next r) (ADD r c) , n ,p, s[r:=NUM n]⟩
+      | None => ⟪p, s⟫
       end.
-dist; eauto using freeFrom_set,IHe2.
-  
-      ⟨comp' e2 (next r) (ADD r c), eval e1, set r (eval e1) s⟩.
   <== { apply vm_store}
-    ⟨STORE r (comp' e2 (next r) (ADD r c)), eval e1, s⟩.
+      match eval e1 with
+      | Some n => ⟨STORE r (comp' e2 (next r) (ADD r c)) , n ,p, s⟩
+      | None => ⟪p, s⟫
+      end.
   <|= { apply IHe1;eauto }
-    ⟨comp' e1 r (STORE r (comp' e2 (next r) (ADD r c))), a, s⟩.
+    ⟨comp' e1 r (STORE r (comp' e2 (next r) (ADD r c))), a,p, s⟩.
+  [].
+
+  begin
+    match eval Throw with
+    | Some n => ⟨c , n ,p, s⟩
+    | None => ⟪p, s⟫
+    end.
+  = { auto }
+      ⟪p, s⟫.
+  <== { apply vm_throw }
+      ⟨THROW, a, p, s⟩.
+  [].
+
+  begin
+    match eval (Catch e1 e2) with
+    | Some n => ⟨c , n ,p, s⟩
+    | None => ⟪p, s⟫
+    end.
+  = { auto }
+      match eval e1 with
+      | Some n => ⟨c , n ,p, s⟩
+      | None => match eval e2 with
+                | Some n' => ⟨c , n' ,p, s⟩
+                | None => ⟪p, s⟫
+                end
+      end.
+  <|= {eauto}                   (* IH *)
+      match eval e1 with
+      | Some n => ⟨c , n ,p, s⟩
+      | None => ⟨comp' e2  r c , 0 ,p, s⟩
+      end.
+  ≤ {eauto}                   (* IH *)
+      match eval e1 with
+      | Some n => ⟨c , n ,p, s⟩
+      | None => ⟨comp' e2  r c , 0 ,p, s[r:= HAN (comp' e2  r c) p]⟩
+      end.
+  <== {apply vm_fail; apply get_set}
+      match eval e1 with
+      | Some n => ⟨c , n ,p, s⟩
+      | None => ⟪Some r, s[r:= HAN (comp' e2  r c) p]⟫
+      end.
+  ≤ {auto}
+      match eval e1 with
+      | Some n => ⟨c , n ,p, s[r:= HAN (comp' e2  r c) p]⟩
+      | None => ⟪Some r, s[r:= HAN (comp' e2  r c) p]⟫
+      end.
+  <== {eapply vm_unmark; apply get_set}
+      match eval e1 with
+      | Some n => ⟨UNMARK c , n ,Some r, s[r:= HAN (comp' e2  r c) p]⟩
+      | None => ⟪Some r, s[r:= HAN (comp' e2  r c) p]⟫
+      end.
+  <|= {apply IHe1; eauto using freeFrom_set}
+      ⟨comp' e1 (next r) (UNMARK c) , a ,Some r, s[r:= HAN (comp' e2  r c) p]⟩.
+  <== {apply vm_mark}
+      ⟨MARK r (comp' e2  r c) (comp' e1 (next r) (UNMARK c)) , a ,p, s⟩.
   [].
 Qed.
 
@@ -196,18 +251,21 @@ Qed.
 
 Lemma determ_vm : determ VM.
   intros C C1 C2 V. induction V; intro V'; inversion V'; subst;eauto.
-  rewrite H in *. inversion H5;subst. auto.
+  rewrite H in *; dist. rewrite H in H3. dist. rewrite H in H5. dist.
 Qed.
 
 
-Theorem sound x a s C : freeFrom adr0 s -> ⟨comp x, a, s⟩ =>>! C -> exists s', C = ⟨HALT, eval x, s'⟩.
+Theorem sound x a p s n C : freeFrom adr0 s -> eval x = Some n -> ⟨comp x, a, p, s⟩ =>>! C -> exists s', C = ⟨HALT, n,p, s'⟩.
 Proof.
-  intros F M.
-  pose (spec x adr0 HALT a s F). unfold Reach in *. repeat autodestruct.
+  intros F E M.
+  pose (spec x adr0 HALT a p s F). unfold Reach in *. repeat autodestruct.
   pose (determ_trc determ_vm) as D.
-  unfold determ in D. inversion H0. subst. eexists. eapply D. apply M. split. 
+  unfold determ in D. inversion H0. subst. eexists. eapply D. apply M.
+  rewrite E in *.
+  split. inversion H1. subst.
+  
   apply H. intro Contra. destruct Contra.
-  inversion H1.
+  inversion H3.
 Qed.
 
-End Arith.
+End Exception.
