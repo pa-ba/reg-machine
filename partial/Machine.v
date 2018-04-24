@@ -128,6 +128,7 @@ Proof.
   exists C. destruct C. split; auto.
 Qed.
 
+Hint Resolve Reach_refl.
 
 Lemma Reach_trans C1 C2 C3 : C1 =|> C2 -> C2 =|> C3 -> C1 =|> C3.
 Proof.

@@ -46,8 +46,8 @@ Notation "⟨ x , y , z ⟩" := (conf x y, z).
 Reserved Notation "x ==> y" (at level 80, no associativity).
 Inductive VM : Conf * Mem nat -> Conf * Mem nat -> Prop :=
 | vm_load n a c s : ⟨LOAD n c, a , s⟩ ==> ⟨c , n,  s⟩
-| vm_add c s a r n : get r s = Some n -> ⟨ADD r c, a , s⟩ ==> ⟨c , n + a,  s⟩
-| vm_store c s a r : ⟨STORE r c, a , s⟩ ==> ⟨c , a,  set r a s⟩
+| vm_add c s a r n : s[r] = n -> ⟨ADD r c, a , s⟩ ==> ⟨c , n + a,  s⟩
+| vm_store c s a r : ⟨STORE r c, a , s⟩ ==> ⟨c , a, s[r:=a]⟩
 where "x ==> y" := (VM x y).
 
 
@@ -102,11 +102,11 @@ Proof.
   = {auto}
     ⟨ c, eval e1 + eval e2, s ⟩.
   ≤ {auto}
-    ⟨c, eval e1 + eval e2, set r (eval e1) s⟩.
+    ⟨c, eval e1 + eval e2, s[r:=eval e1]⟩.
   <== {apply vm_add; eauto using get_set}
-      ⟨ADD r c, eval e2, set r (eval e1) s⟩.
+      ⟨ADD r c, eval e2, s[r:=eval e1]⟩.
   <|= {apply IHe2; eauto using freeFrom_set}
-      ⟨comp' e2 (next r) (ADD r c), eval e1, set r (eval e1) s⟩.
+      ⟨comp' e2 (next r) (ADD r c), eval e1, s[r:=eval e1]⟩.
   <== { apply vm_store}
     ⟨STORE r (comp' e2 (next r) (ADD r c)), eval e1, s⟩.
   <|= { apply IHe1;eauto }

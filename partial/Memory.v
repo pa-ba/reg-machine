@@ -46,6 +46,9 @@ Notation "s ≥ t" := (t ≤ s) (at level 70) : memory_scope.
 
 Notation "r <= r'" := (r < r' \/ r = r') (at level 70) : memory_scope.
 
+Notation "s [ r ] = v" := (get r s = Some v) (at level 70).
+Notation "s [ r := v ]" := (set r v s) (at level 70).
+
 End Memory.
 
 Require Import Setoid.  

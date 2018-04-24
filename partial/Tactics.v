@@ -20,9 +20,6 @@ Import ListNotations.
 Ltac autodestruct := match goal with
                      | [ H : _ /\ _ |- _] => destruct H
                      | [ H : exists _ , _ |- _] => destruct H
-                     | [ H : Some _ = Some _ |- _] => inversion H; clear H
-                     | [ H : Some _ = None |- _] => inversion H
-                     | [ H : None = Some _ |- _] => inversion H
                      end.
 
 
@@ -36,19 +33,27 @@ Ltac eval_inv ev := let do_inv e H := (first [is_var e; fail 1|inversion H; subs
                           | [ H: ev ?e _ _ _ _ |- _ ] => do_inv e H
                           | _ => eauto
                         end.
+Ltac smart_destruct x := first[is_var x;destruct x| let x' := fresh in remember x as x'; destruct x' ].
 
-Ltac dist' ev := simpl in *; intros; subst; ev;
-                 match goal with
-                   | [ H: and _ _ |- _ ] => destruct H; dist' ev
-                   | [ H: ex _ |- _ ] => destruct H; dist' ev
-                   | [ H: or _ _ |- _ ] => destruct H; dist' ev
-                   | [ H: eq _ _ |- _ ] => rewrite H in *; dist' ev
-                   | [ |- and _ _ ] => split; repeat dist' ev
-                   | [ |- _ <-> _ ] => split; dist' ev
-                   | [ |- ex _ ] => eexists; dist' ev
-                   | [ |- or _ _] => solve [right;dist' ev|left; dist' ev]
-                   | _ => idtac
-                 end.
+
+Ltac dist' ev :=
+  simpl in *; intros; subst; ev;
+  match goal with
+  | [ H : Some _ = Some _ |- _] => inversion H; clear H; dist' ev
+  | [ H : Some _ = None |- _] => inversion H; dist' ev
+  | [ H : None = Some _ |- _] => inversion H; dist' ev
+  | [ H: and _ _ |- _ ] => destruct H; dist' ev
+  | [ H: ex _ |- _ ] => destruct H; dist' ev
+  | [ H: or _ _ |- _ ] => destruct H; dist' ev
+  | [ H: eq _ _ |- _ ] => rewrite H in *; dist' ev
+  | [ |- and _ _ ] => split; repeat dist' ev
+  | [ |- _ <-> _ ] => split; dist' ev
+  | [ |- ex _ ] => eexists; dist' ev
+  | [ |- or _ _] => solve [right;dist' ev|left; dist' ev]
+  | [ |- context [let _ := ?x in _] ] => smart_destruct x;dist' ev
+  | [ |- context [match ?x with _ => _ end]] => smart_destruct x; dist' ev
+  | _ => idtac
+  end.
 
 Ltac dist := dist' eauto.
 
@@ -76,7 +81,7 @@ Tactic Notation  (at level 2)    "≤" "{?}" constr(e2) :=
   match goal with
     | [|- ?Rel ?lhs ?rhs] => check_rel Reach Rel;
                             let h := fresh "rewriting" in
-                            assert(e2 ≤ rhs)
+                            assert(rhs ≤ e2)
       | _ => fail 1 "goal is not a VM"
     end.
 
@@ -127,7 +132,7 @@ Tactic Notation  (at level 2)    "<|=" "{{"tactic(t1) "}}" constr(e2) :=
 
 
 Tactic Notation  (at level 2)    "≤" "{"tactic(t) "}" constr(e) :=
-  <|= {{ apply Reach_cle ; apply clem; solve_memle t }} e .
+  <|= {{ apply Reach_cle; dist; apply clem; solve_memle t }} e .
 
 Tactic Notation  (at level 2)    "=" "{"tactic(t) "}" constr(e) :=
   <|= {{ apply Reach_cle ;dist' t }} e .
@@ -136,7 +141,7 @@ Tactic Notation  (at level 2)    "=" "{"tactic(t) "}" constr(e) :=
 
 
 Tactic Notation  (at level 2)    "<==" "{" tactic(t) "}" constr(e) :=
-  <|= {{ apply Reach_vm; t; dist }} e.
+  <|= {{ apply Reach_trc; dist; apply trc_step; t }} e.
 
 Tactic Notation  (at level 2)  "begin" constr(rhs) :=
   match goal with
