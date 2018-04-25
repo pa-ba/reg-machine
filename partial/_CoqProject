@@ -4,4 +4,5 @@ Memory.v
 LinearMemory.v
 Tactics.v
 Arith.v
+Exception.v
 

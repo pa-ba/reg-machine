@@ -163,7 +163,7 @@ Proof.
                 end
     | None => ⟪p, s⟫
     end.
-  <== {apply vm_add; eauto using get_set}
+  <== { apply vm_add }
       match eval e1 with
       | Some n => match eval e2 with
                   | Some n' => ⟨ADD r c , n' ,p, s[r:=NUM n]⟩
@@ -171,20 +171,22 @@ Proof.
                   end
       | None => ⟪p, s⟫
       end.
-  <|= {eauto using freeFrom_set}
+  <|= { apply IHe2 }
       match eval e1 with
       | Some n => ⟨comp' e2 (next r) (ADD r c) , n ,p, s[r:=NUM n]⟩
       | None => ⟪p, s⟫
       end.
-  <== { apply vm_store}
+  <== { apply vm_store }
       match eval e1 with
       | Some n => ⟨STORE r (comp' e2 (next r) (ADD r c)) , n ,p, s⟩
       | None => ⟪p, s⟫
       end.
-  <|= { apply IHe1;eauto }
+  <|= { apply IHe1 }
     ⟨comp' e1 r (STORE r (comp' e2 (next r) (ADD r c))), a,p, s⟩.
   [].
 
+(** - [x = Throw]: *)
+  
   begin
     match eval Throw with
     | Some n => ⟨c , n ,p, s⟩
@@ -196,6 +198,8 @@ Proof.
       ⟨THROW, a, p, s⟩.
   [].
 
+(** - [x = Catch x1 x2]: *)
+  
   begin
     match eval (Catch e1 e2) with
     | Some n => ⟨c , n ,p, s⟩
@@ -209,17 +213,17 @@ Proof.
                 | None => ⟪p, s⟫
                 end
       end.
-  <|= {eauto}                   (* IH *)
+  <|= { apply IHe2 }
       match eval e1 with
       | Some n => ⟨c , n ,p, s⟩
       | None => ⟨comp' e2  r c , 0 ,p, s⟩
       end.
-  ≤ {eauto}                   (* IH *)
+  ≤ { eauto }
       match eval e1 with
       | Some n => ⟨c , n ,p, s⟩
       | None => ⟨comp' e2  r c , 0 ,p, s[r:= HAN (comp' e2  r c) p]⟩
       end.
-  <== {apply vm_fail; apply get_set}
+  <== {apply vm_fail}
       match eval e1 with
       | Some n => ⟨c , n ,p, s⟩
       | None => ⟪Some r, s[r:= HAN (comp' e2  r c) p]⟫
@@ -234,7 +238,7 @@ Proof.
       | Some n => ⟨UNMARK c , n ,Some r, s[r:= HAN (comp' e2  r c) p]⟩
       | None => ⟪Some r, s[r:= HAN (comp' e2  r c) p]⟫
       end.
-  <|= {apply IHe1; eauto using freeFrom_set}
+  <|= {apply IHe1}
       ⟨comp' e1 (next r) (UNMARK c) , a ,Some r, s[r:= HAN (comp' e2  r c) p]⟩.
   <== {apply vm_mark}
       ⟨MARK r (comp' e2  r c) (comp' e1 (next r) (UNMARK c)) , a ,p, s⟩.

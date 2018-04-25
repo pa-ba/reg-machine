@@ -103,13 +103,13 @@ Proof.
     ⟨ c, eval e1 + eval e2, s ⟩.
   ≤ {auto}
     ⟨c, eval e1 + eval e2, s[r:=eval e1]⟩.
-  <== {apply vm_add; eauto using get_set}
+  <== {apply vm_add}
       ⟨ADD r c, eval e2, s[r:=eval e1]⟩.
-  <|= {apply IHe2; eauto using freeFrom_set}
+  <|= {apply IHe2}
       ⟨comp' e2 (next r) (ADD r c), eval e1, s[r:=eval e1]⟩.
   <== { apply vm_store}
     ⟨STORE r (comp' e2 (next r) (ADD r c)), eval e1, s⟩.
-  <|= { apply IHe1;eauto }
+  <|= { apply IHe1 }
     ⟨comp' e1 r (STORE r (comp' e2 (next r) (ADD r c))), a, s⟩.
   [].
 Qed.

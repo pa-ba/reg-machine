@@ -46,10 +46,10 @@ Ltac dist' ev :=
   | [ H: ex _ |- _ ] => destruct H; dist' ev
   | [ H: or _ _ |- _ ] => destruct H; dist' ev
   | [ H: eq _ _ |- _ ] => rewrite H in *; dist' ev
-  | [ |- and _ _ ] => split; repeat dist' ev
-  | [ |- _ <-> _ ] => split; dist' ev
-  | [ |- ex _ ] => eexists; dist' ev
-  | [ |- or _ _] => solve [right;dist' ev|left; dist' ev]
+  (* | [ |- and _ _ ] => split; repeat dist' ev *)
+  (* | [ |- _ <-> _ ] => split; dist' ev *)
+  (* | [ |- ex _ ] => eexists; dist' ev *)
+  (* | [ |- or _ _] => solve [right;dist' ev|left; dist' ev] *)
   | [ |- context [let _ := ?x in _] ] => smart_destruct x;dist' ev
   | [ |- context [match ?x with _ => _ end]] => smart_destruct x; dist' ev
   | _ => idtac
@@ -111,14 +111,6 @@ Tactic Notation  (at level 2)    "<|=" "{?}" constr(e2) :=
       | _ => fail 1 "goal is not a VM"
     end.
 
-Tactic Notation  (at level 2)    "<|=" "{"tactic(t1) "}" constr(e2) :=
-  match goal with
-    | [|- ?Rel ?lhs ?rhs] => check_rel Reach Rel;
-        first [let h := fresh "rewriting" in
-               assert(h : Reach e2 rhs) by (dist' t1);
-                 apply (fun x => Reach_trans _ _ _ x h); clear h | fail 2]
-      | _ => fail 1 "goal is not a VM"
-    end.
 
 
 Tactic Notation  (at level 2)    "<|=" "{{"tactic(t1) "}}" constr(e2) :=
@@ -131,6 +123,12 @@ Tactic Notation  (at level 2)    "<|=" "{{"tactic(t1) "}}" constr(e2) :=
     end.
 
 
+
+Tactic Notation  (at level 2)    "<|=" "{"tactic(t) "}" constr(e) :=
+  let t' := try solve [t;eauto using freeFrom_set|apply Reach_refl;eauto]
+  in 
+  <|= {{ dist' t' }} e .
+
 Tactic Notation  (at level 2)    "≤" "{"tactic(t) "}" constr(e) :=
   <|= {{ apply Reach_cle; dist; apply clem; solve_memle t }} e .
 
@@ -141,7 +139,9 @@ Tactic Notation  (at level 2)    "=" "{"tactic(t) "}" constr(e) :=
 
 
 Tactic Notation  (at level 2)    "<==" "{" tactic(t) "}" constr(e) :=
-  <|= {{ apply Reach_trc; dist; apply trc_step; t }} e.
+  let tt := try solve[apply trc_step; t; eauto using get_set|apply trc_refl;eauto]
+  in <|= {{ apply Reach_trc;  dist' tt}} e.
+
 
 Tactic Notation  (at level 2)  "begin" constr(rhs) :=
   match goal with
