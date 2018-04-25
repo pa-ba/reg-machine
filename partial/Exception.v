@@ -233,7 +233,7 @@ Proof.
       | Some n => ⟨c , n ,p, s[r:= HAN (comp' e2  r c) p]⟩
       | None => ⟪Some r, s[r:= HAN (comp' e2  r c) p]⟫
       end.
-  <== {eapply vm_unmark; apply get_set}
+  <== {eapply vm_unmark}
       match eval e1 with
       | Some n => ⟨UNMARK c , n ,Some r, s[r:= HAN (comp' e2  r c) p]⟩
       | None => ⟪Some r, s[r:= HAN (comp' e2  r c) p]⟫

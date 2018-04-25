@@ -42,6 +42,7 @@ Ltac dist' ev :=
   | [ H : Some _ = Some _ |- _] => inversion H; clear H; dist' ev
   | [ H : Some _ = None |- _] => inversion H; dist' ev
   | [ H : None = Some _ |- _] => inversion H; dist' ev
+  | [ H : pair _ _  = pair _ _ |- _] => inversion H; clear H; dist' ev
   | [ H: and _ _ |- _ ] => destruct H; dist' ev
   | [ H: ex _ |- _ ] => destruct H; dist' ev
   | [ H: or _ _ |- _ ] => destruct H; dist' ev
