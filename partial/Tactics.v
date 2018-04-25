@@ -123,9 +123,11 @@ Tactic Notation  (at level 2)    "<|=" "{{"tactic(t1) "}}" constr(e2) :=
     end.
 
 
+Ltac confeq := repeat rewrite set_set; auto.
 
 Tactic Notation  (at level 2)    "<|=" "{"tactic(t) "}" constr(e) :=
-  let t' := try solve [t;eauto using freeFrom_set|apply Reach_refl;eauto]
+  let t' := try solve [eapply rel_eq;
+                       [t;eauto using freeFrom_set|confeq]|apply Reach_refl;eauto]
   in 
   <|= {{ dist' t' }} e .
 
@@ -136,10 +138,9 @@ Tactic Notation  (at level 2)    "=" "{"tactic(t) "}" constr(e) :=
   <|= {{ apply Reach_cle ;dist' t }} e .
 
 
-
-
 Tactic Notation  (at level 2)    "<==" "{" tactic(t) "}" constr(e) :=
-  let tt := try solve[apply trc_step; t; eauto using get_set|apply trc_refl;eauto]
+  let tt := try solve[apply trc_step; eapply rel_eq; [t; eauto using get_set|confeq]
+                     |apply trc_refl;eauto]
   in <|= {{ apply Reach_trc;  dist' tt}} e.
 
 

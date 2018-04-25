@@ -39,15 +39,18 @@ Definition comp (x : Expr) : Code := comp' x adr0 HALT.
 
 (** * Virtual Machine *)
 
-Inductive Conf : Type := conf : Code -> nat -> Conf.
+Inductive Conf : Type := conf : Code -> Conf.
 
-Notation "⟨ x , y , z ⟩" := (conf x y, z).
+Notation "⟨ x , y , z ⟩" := (conf x, y, z).
+
+Definition acc := named "acc".
 
 Reserved Notation "x ==> y" (at level 80, no associativity).
-Inductive VM : Conf * Mem nat -> Conf * Mem nat -> Prop :=
-| vm_load n a c s : ⟨LOAD n c, a , s⟩ ==> ⟨c , n,  s⟩
-| vm_add c s a r n : s[r] = n -> ⟨ADD r c, a , s⟩ ==> ⟨c , n + a,  s⟩
-| vm_store c s a r : ⟨STORE r c, a , s⟩ ==> ⟨c , a, s[r:=a]⟩
+Inductive VM : Conf * Mem nat * Mem nat -> Conf * Mem nat * Mem nat -> Prop :=
+| vm_load n a c s : ⟨LOAD n c, a , s⟩ ==> ⟨c , a[acc:=n],  s⟩
+| vm_add c s a m r n : s[r] = n -> m[acc] = a
+                     -> ⟨ADD r c, m , s⟩ ==> ⟨c , m[acc:= n + a],  s⟩
+| vm_store c s a m r : m[acc] = a -> ⟨STORE r c, m , s⟩ ==> ⟨c , m, s[r:=a]⟩
 where "x ==> y" := (VM x y).
 
 
@@ -62,15 +65,19 @@ Definition Conf := Conf.
 Definition Rel := VM.
 Definition MemElem := nat.
 Lemma monotone : monotonicity VM.
-prove_monotonicity. Qed.
+  do 8 intro; intros Hle Hle' Step;
+  dependent destruction Step;
+  do 2eexists; (split; [econstructor| idtac]) ; eauto using memle_get, set_monotone.
+Qed.
 End VM.
 Module VMCalc := Calculation mem VM.
 Import VMCalc.
 
 
+
 (** Specification of the compiler *)
 
-Theorem spec e r c a s : freeFrom r s -> ⟨comp' e r c, a, s⟩  =|> ⟨c , eval e, s⟩ .
+Theorem spec e r c m s : freeFrom r s -> ⟨comp' e r c, m, s⟩  =|> ⟨c , m[acc:=eval e], s⟩ .
 
 
 (** Setup the induction proof *)
@@ -80,7 +87,7 @@ Proof.
   generalize dependent c.
   generalize dependent s.
   generalize dependent r.
-  generalize dependent a.
+  generalize dependent m.
   induction e;intros.
 
 (** Calculation of the compiler *)
@@ -88,29 +95,29 @@ Proof.
 (** - [x = Val n]: *)
 
   begin
-    ⟨c , eval (Val n), s⟩.
+    ⟨c , m[acc:=eval (Val n)], s⟩.
   = {auto}
-      ⟨ c, n, s⟩.
-  <== { apply vm_load }
-      ⟨ LOAD n c, a, s ⟩.
+      ⟨ c, m[acc:=n], s⟩.
+  <== {apply vm_load }
+      ⟨ LOAD n c, m, s ⟩.
   [].
 
 (** - [x = Add x1 x2]: *)
   
   begin
-    ⟨ c, eval (Add e1 e2), s ⟩.
+    ⟨ c, m[acc:= eval (Add e1 e2)], s ⟩.
   = {auto}
-    ⟨ c, eval e1 + eval e2, s ⟩.
+    ⟨ c, m[acc:= eval e1 + eval e2], s ⟩.
   ≤ {auto}
-    ⟨c, eval e1 + eval e2, s[r:=eval e1]⟩.
+    ⟨c, m[acc:= eval e1 + eval e2], s[r:=eval e1]⟩.
   <== {apply vm_add}
-      ⟨ADD r c, eval e2, s[r:=eval e1]⟩.
+      ⟨ADD r c, m[acc:= eval e2], s[r:=eval e1]⟩.
   <|= {apply IHe2}
-      ⟨comp' e2 (next r) (ADD r c), eval e1, s[r:=eval e1]⟩.
+      ⟨comp' e2 (next r) (ADD r c), m[acc:=eval e1], s[r:=eval e1]⟩.
   <== { apply vm_store}
-    ⟨STORE r (comp' e2 (next r) (ADD r c)), eval e1, s⟩.
+    ⟨STORE r (comp' e2 (next r) (ADD r c)), m[acc:=eval e1], s⟩.
   <|= { apply IHe1 }
-    ⟨comp' e1 r (STORE r (comp' e2 (next r) (ADD r c))), a, s⟩.
+    ⟨comp' e1 r (STORE r (comp' e2 (next r) (ADD r c))), m, s⟩.
   [].
 Qed.
 

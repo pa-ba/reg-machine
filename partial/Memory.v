@@ -1,3 +1,5 @@
+Require Export String.
+
 (* Abstract specification of memory *)
 
 
@@ -13,6 +15,8 @@ Parameter adr : Set.
 Parameter adr0 : adr.
 Parameter next : adr -> adr.
 
+Parameter named : string -> adr.
+
 Parameter dec_eq : forall (r r' : adr),  {r  = r'} + { r <> r'}.
 
 Hint Constructors lta.
@@ -22,6 +26,8 @@ Infix "<" := (lta adr next) (at level 70) : memory_scope.
 Open Scope memory_scope.
 
 Axiom next_fresh : forall (r r' : adr), r < r' -> r <> r'.
+
+Axiom named_fresh : forall (n m : string), n <> m -> named n <> named m.
 
 Parameter Mem : Type -> Type.
 

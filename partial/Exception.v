@@ -59,28 +59,34 @@ Definition Han := option adr.
 
 Inductive Elem : Set :=
 | NUM : nat -> Elem
-| HAN : Code -> Han -> Elem.
+| HAN : Code -> Han -> Elem
+| CUR : Han -> Elem.
 
 (** * Virtual Machine *)
 
 Inductive Conf : Type :=
-| conf : Code -> nat -> Han -> Conf
-| fail : Han -> Conf.
+| conf : Code -> Conf
+| fail : Conf.
 
 
-Notation "⟨ x , y , z , s ⟩" := (conf x y z, s).
-Notation "⟪ x , s ⟫" := (fail x, s).
+Notation "⟨ x , y ,  s ⟩" := (conf x , y, s).
+Notation "⟪ x , s ⟫" := (fail, x, s).
+
+Definition acc := named "acc".
+Definition han := named "han".
 
 Reserved Notation "x ==> y" (at level 80, no associativity).
-Inductive VM : Conf * Mem Elem -> Conf * Mem Elem -> Prop :=
-| vm_load n a c s p : ⟨LOAD n c, a , p, s⟩ ==> ⟨c , n, p, s⟩ 
-| vm_add c s a r n p : s[r]=  NUM n -> ⟨ADD r c, a , p, s⟩ ==> ⟨c , n + a, p, s⟩
-| vm_store c s a r p : ⟨STORE r c, a, p, s⟩ ==> ⟨c , a, p, s[r:=NUM a]⟩
-| vm_throw a s p : ⟨THROW, a, p, s⟩ ==> ⟪p, s⟫
-| vm_fail p p' s c : s[p] = HAN c p' -> ⟪ Some p, s⟫ ==> ⟨c, 0, p', s⟩
-| vm_unmark p p' s a c c' : s[p] = HAN c' p' ->
-                            ⟨UNMARK c, a, Some p, s⟩ ==> ⟨c, a, p', s⟩
-| vm_mark p r s a c c' : ⟨MARK r c' c, a, p, s⟩ ==> ⟨c, a, Some r, s[r:= HAN c' p]⟩
+Inductive VM : Conf * Mem Elem * Mem Elem -> Conf * Mem Elem * Mem Elem -> Prop :=
+| vm_load n m c s : ⟨LOAD n c, m, s⟩ ==> ⟨c , m[acc:=NUM n], s⟩ 
+| vm_add c s a r n m : s[r]=  NUM n -> m[acc]= NUM a
+                       -> ⟨ADD r c, m, s⟩ ==> ⟨c , m[acc:=NUM (n + a)], s⟩
+| vm_store c s a r m : m[acc] = NUM a -> ⟨STORE r c, m, s⟩ ==> ⟨c , m, s[r:=NUM a]⟩
+| vm_throw s m : ⟨THROW, m, s⟩ ==> ⟪m, s⟫
+| vm_fail p p' m s c : m[han]=CUR (Some p) -> s[p] = HAN c p'  ->
+                     ⟪ m, s⟫ ==> ⟨c, m[han:=CUR p'], s⟩
+| vm_unmark p p' s m c c' : m[han] = CUR(Some p) -> s[p] = HAN c' p' ->
+                            ⟨UNMARK c, m, s⟩ ==> ⟨c, m[han:=CUR p'], s⟩
+| vm_mark  r s m p c c' : ⟨MARK r c' c, m, s⟩ ==> ⟨c, m[han:= CUR (Some r)], s[r:= HAN c' p]⟩
 where "x ==> y" := (VM x y).
 
 
@@ -96,7 +102,8 @@ Definition Conf := Conf.
 Definition Rel := VM.
 Definition MemElem := Elem.
 Lemma monotone : monotonicity VM.
-prove_monotonicity. Qed.
+Admitted.
+(* prove_monotonicity. Qed. *)
 End VM.
 Module VMCalc := Calculation mem VM.
 Import VMCalc.
@@ -104,13 +111,13 @@ Import VMCalc.
 
 (** Specification of the compiler *)
 
-Theorem spec e r c a p s :
+Theorem spec e r m c s :
   freeFrom r s ->
-  ⟨comp' e r c, a, p, s⟩
+  ⟨comp' e r c, m, s⟩
     =|>
     match eval e with
-    | Some n => ⟨c , n, p, s⟩
-    | None => ⟪p, s⟫
+    | Some n => ⟨c , m[acc:=NUM n] , s⟩
+    | None => ⟪m, s⟫
     end.
 
 
@@ -121,8 +128,7 @@ Proof.
   generalize dependent c.
   generalize dependent s.
   generalize dependent r.
-  generalize dependent a.
-  generalize dependent p.
+  generalize dependent m.
   induction e;intros.
 
 (** Calculation of the compiler *)
@@ -131,97 +137,97 @@ Proof.
 
   begin
     match eval (Val n) with
-    | Some n' => ⟨c , n' ,p, s⟩
-    | None => ⟪p, s⟫
+    | Some n' => ⟨c , m[acc:=NUM n'], s⟩
+    | None => ⟪m, s⟫
     end.
   = {auto}
-      ⟨ c, n, p, s⟩.
+      ⟨ c, m[acc:=NUM n], s⟩.
   <== {apply vm_load}
-      ⟨ LOAD n c, a, p, s ⟩.
+      ⟨ LOAD n c, m, s ⟩.
   [].
 
 (** - [x = Add x1 x2]: *)
   
   begin
     match eval (Add e1 e2) with
-    | Some n => ⟨c , n ,p, s⟩
-    | None => ⟪p, s⟫
+    | Some n => ⟨c , m[acc:=NUM n], s⟩
+    | None => ⟪m, s⟫
     end.
   = { auto }
     match eval e1 with
     | Some n => match eval e2 with
-                | Some n' => ⟨c , n + n' ,p, s⟩
-                | None => ⟪p, s⟫
+                | Some n' => ⟨c , m[acc:= NUM (n + n')], s⟩
+                | None => ⟪m, s⟫
                 end
-    | None => ⟪p, s⟫
+    | None => ⟪m, s⟫
     end.
   ≤ { auto }
     match eval e1 with
     | Some n => match eval e2 with
-                | Some n' => ⟨c , n + n' ,p, s[r:=NUM n]⟩
-                | None => ⟪p, s[r:=NUM n]⟫
+                | Some n' => ⟨c , m[acc:= NUM (n + n')], s[r:=NUM n]⟩
+                | None => ⟪m, s[r:=NUM n]⟫
                 end
-    | None => ⟪p, s⟫
+    | None => ⟪m, s⟫
     end.
   <== { apply vm_add }
       match eval e1 with
       | Some n => match eval e2 with
-                  | Some n' => ⟨ADD r c , n' ,p, s[r:=NUM n]⟩
-                  | None => ⟪p, s[r:=NUM n]⟫
+                  | Some n' => ⟨ADD r c , m[acc:= NUM n'], s[r:=NUM n]⟩
+                  | None => ⟪m, s[r:=NUM n]⟫
                   end
-      | None => ⟪p, s⟫
+      | None => ⟪m, s⟫
       end.
-  <|= { apply IHe2 }
+  <|= { admit } (* apply IHe2 *)
       match eval e1 with
-      | Some n => ⟨comp' e2 (next r) (ADD r c) , n ,p, s[r:=NUM n]⟩
-      | None => ⟪p, s⟫
+      | Some n => ⟨comp' e2 (next r) (ADD r c) , m[acc:=NUM n], s[r:=NUM n]⟩
+      | None => ⟪m, s⟫
       end.
   <== { apply vm_store }
       match eval e1 with
-      | Some n => ⟨STORE r (comp' e2 (next r) (ADD r c)) , n ,p, s⟩
-      | None => ⟪p, s⟫
+      | Some n => ⟨STORE r (comp' e2 (next r) (ADD r c)) , m[acc:=NUM n],  s⟩
+      | None => ⟪m, s⟫
       end.
   <|= { apply IHe1 }
-    ⟨comp' e1 r (STORE r (comp' e2 (next r) (ADD r c))), a,p, s⟩.
+    ⟨comp' e1 r (STORE r (comp' e2 (next r) (ADD r c))), m, s⟩.
   [].
 
 (** - [x = Throw]: *)
   
   begin
     match eval Throw with
-    | Some n => ⟨c , n ,p, s⟩
-    | None => ⟪p, s⟫
+    | Some n => ⟨c ,m[acc:= NUM n], s⟩
+    | None => ⟪m, s⟫
     end.
   = { auto }
-      ⟪p, s⟫.
+      ⟪m, s⟫.
   <== { apply vm_throw }
-      ⟨THROW, a, p, s⟩.
+      ⟨THROW, m, s⟩.
   [].
 
 (** - [x = Catch x1 x2]: *)
   
   begin
     match eval (Catch e1 e2) with
-    | Some n => ⟨c , n ,p, s⟩
-    | None => ⟪p, s⟫
+    | Some n => ⟨c , m[acc:=NUM n], s⟩
+    | None => ⟪m, s⟫
     end.
   = { auto }
       match eval e1 with
-      | Some n => ⟨c , n ,p, s⟩
+      | Some n => ⟨c , m[acc:=NUM n], s⟩
       | None => match eval e2 with
-                | Some n' => ⟨c , n' ,p, s⟩
-                | None => ⟪p, s⟫
+                | Some n' => ⟨c , m[acc:=NUM n'], s⟩
+                | None => ⟪m, s⟫
                 end
       end.
   <|= { apply IHe2 }
       match eval e1 with
-      | Some n => ⟨c , n ,p, s⟩
-      | None => ⟨comp' e2  r c , 0 ,p, s⟩
+      | Some n => ⟨c , m[acc:=NUM n], s⟩
+      | None => ⟨comp' e2  r c , m, s⟩
       end.
   ≤ { eauto }
       match eval e1 with
-      | Some n => ⟨c , n ,p, s⟩
-      | None => ⟨comp' e2  r c , 0 ,p, s[r:= HAN (comp' e2  r c) p]⟩
+      | Some n => ⟨c , m[acc:=NUM n], s⟩
+      | None => ⟨comp' e2  r c , m, s[r:= HAN (comp' e2  r c) p]⟩
       end.
   <== {apply vm_fail}
       match eval e1 with

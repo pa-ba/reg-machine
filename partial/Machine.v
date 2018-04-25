@@ -6,11 +6,11 @@ Export mem.
 Module mt := MemoryTheory mem.
 Export mt.
 Definition monotonicity {Conf e}
-           (vm : Conf * (Mem e) -> Conf * (Mem e) -> Prop) :
-     Prop := forall (C1 C2 : Conf) (m1 m2 m1' : Mem e),
-  m1 ≤ m1' ->
-  vm (C1, m1) (C2, m2)  ->
-  exists m2', vm (C1, m1') (C2, m2') /\ m2 ≤ m2'.
+           (vm : Conf * (Mem e) * (Mem e) -> Conf * (Mem e) * (Mem e) -> Prop) :
+     Prop := forall (C1 C2 : Conf) (m1 m2 m1' : Mem e) (n1 n2 n1' : Mem e),
+  m1 ≤ m1' ->  n1 ≤ n1' ->
+  vm (C1, m1, n1) (C2, m2, n2)  ->
+  exists m2' n2', vm (C1, m1', n1') (C2, m2', n2') /\ m2 ≤ m2' /\ n2 ≤ n2'.
 
 Ltac prove_monotonicity :=
   do 5 intro; intros Hle Step;
@@ -24,11 +24,11 @@ Module Type Machine (mem: Memory).
 Export mem.
 Parameter Conf : Type.
 Parameter MemElem : Type.
-Parameter Rel : Conf * (Mem MemElem) -> Conf * (Mem MemElem) -> Prop.
-Parameter monotone : forall (C1 C2 : Conf) (m1 m2 m1' : Mem MemElem),
-  m1 ≤ m1' ->
-  Rel (C1, m1) (C2, m2)  ->
-  exists m2', Rel (C1, m1') (C2, m2') /\ m2 ≤ m2'.
+Parameter Rel : Conf * (Mem MemElem) * (Mem MemElem) -> Conf * (Mem MemElem) * (Mem MemElem) -> Prop.
+Parameter monotone : forall (C1 C2 : Conf) (m1 m2 m1' : Mem MemElem) (n1 n2 n1' : Mem MemElem),
+  m1 ≤ m1' ->  n1 ≤ n1' ->
+  Rel (C1, m1, n1) (C2, m2, n2)  ->
+  exists m2' n2', Rel (C1, m1', n1') (C2, m2', n2') /\ m2 ≤ m2' /\ n2 ≤ n2'.
 End Machine.
 
 Require Import List.
@@ -40,7 +40,7 @@ Module mt := MemoryTheory mem.
 Export mt.  
 Import ListNotations.
 
-Definition Config := (Conf * Mem MemElem)%type.
+Definition Config := (Conf * Mem MemElem * Mem MemElem)%type.
 
 Infix "==>" := Rel(at level 80, no associativity) : machine_scope.
 
@@ -55,6 +55,11 @@ Proof. apply rt_refl. Qed.
 
 Lemma trc_step c1 c2 : c1 ==> c2 -> c1 =>> c2.
 Proof. apply rt_step. Qed.
+
+Lemma rel_eq {T} {R : T -> T -> Prop} c1 c2 c3 : R c1 c2 -> c2 = c3 -> R c1 c3.
+Proof.
+  intros. subst. assumption.
+Qed.
 
 Lemma trc_step_trans c1 c2 c3 : c1 =>> c2 -> c2 ==> c3 -> c1 =>> c3.
 Proof. intros. eapply rt_trans; eauto using rt_step. Qed.
@@ -104,9 +109,9 @@ Lemma monotone_step (C1 C1' C2 : Config) :
   C1 ==> C2 ->
   exists C2', C1' ==> C2' /\ C2 ≤ C2' .
 Proof.
-  intros L S. destruct L as [C m1 m2 Ic]. destruct C2. eapply monotone in Ic; eauto. destruct Ic as [m2' SS].
+  intros L S. destruct L as [C m1 m2 Ic]. destruct C2, C, p. eapply monotone in Ic; eauto. destruct Ic as [m2' SS].
   destruct SS as [S' I]. eexists. split; eauto. 
-Qed. 
+Admitted.
 
 Lemma monotone_machine (C1 C1' C2 : Config) :
   C1 ≤ C1' ->

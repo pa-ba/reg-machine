@@ -1,7 +1,7 @@
 -R . Comp
 Machine.v
 Memory.v
-LinearMemory.v
+# LinearMemory.v
 Tactics.v
 Arith.v
 Exception.v
