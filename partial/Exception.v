@@ -22,7 +22,7 @@ Fixpoint eval (x: Expr) : option nat :=
     | Val n => Some n
     | Add x1 x2 => match eval x1 with
                    | Some m => match eval x2 with
-                               | Some n => Some (m + n)%nat
+                               | Some n => Some (m + n)
                                | None => None
                                end
                    | None => None

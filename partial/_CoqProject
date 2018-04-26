@@ -6,3 +6,4 @@ Tactics.v
 Arith.v
 Exception.v
 State.v
+LocalState.v
