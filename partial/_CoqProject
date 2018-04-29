@@ -7,3 +7,5 @@ Arith.v
 Exception.v
 State.v
 LocalState.v
+ListIndex.v
+Lambda.v
