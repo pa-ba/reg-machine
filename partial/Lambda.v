@@ -137,9 +137,7 @@ End VM.
 Module VMCalc := Calculation mem VM.
 Import VMCalc.
 
-Lemma rel_eq {T} {R : T -> T -> Prop} x y y' : R x y' -> y = y' -> R x y.
-Proof. intros. subst. auto.
-Qed .
+
 
 (** Specification of the compiler *)
 
@@ -187,7 +185,7 @@ Proof.
 
   begin
     ⟨c, conv v, convE e , s⟩.
-  <== {apply vm_lookup; unfold convE; rewrite nth_map; rewrite H}
+  <== {apply vm_lookup; unfold convE; rewrite nth_map; rewr_assumption}
       ⟨LOOKUP i c, a , convE e, s ⟩.
    [].
 
@@ -211,7 +209,7 @@ Proof.
     ⟨comp' x' (next r) (RET r), Num' 0, convE (y' :: e'), s[r:=CLO c (convE e)]⟩.
   = {auto}
       ⟨comp' x' (next r) (RET r), Num' 0, conv y' :: convE e', s[r:=CLO c (convE e)]⟩.
-  <== {eapply rel_eq; [apply vm_app; apply get_set| rewrite set_set; reflexivity]}
+  <== {apply_eq vm_app}
       ⟨APP r c, conv y', convE e, s[r:=VAL (Clo' (fun r' => comp' x' (next r') (RET r')) (convE e'))]⟩.
   <|= { apply IHE2 }
     ⟨comp' y (next r) (APP r c), (Clo' (fun r' => comp' x' (next r') (RET r')) (convE e')), convE e, s[r:=VAL (Clo' (fun r' => comp' x' (next r') (RET r')) (convE e'))]⟩.

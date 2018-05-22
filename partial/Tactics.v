@@ -21,6 +21,9 @@ Ltac autodestruct := match goal with
                      | [ H : _ /\ _ |- _] => destruct H
                      | [ H : exists _ , _ |- _] => destruct H
                      end.
+Ltac rewr_assumption := idtac; match goal with
+                          | [R: _ = _ |- _ ] => first [rewrite R| rewrite <- R]
+                        end.
 
 
 
@@ -137,7 +140,11 @@ Tactic Notation  (at level 2)    "=" "{"tactic(t) "}" constr(e) :=
   <|= {{ apply Reach_cle ;dist' t }} e .
 
 
+Lemma rel_eq {T} {R : T -> T -> Prop} x y y' : R x y' -> y = y' -> R x y.
+Proof. intros. subst. auto.
+Qed .
 
+Ltac apply_eq t := eapply rel_eq; [apply t | repeat rewrite set_set; auto].
 
 Tactic Notation  (at level 2)    "<==" "{" tactic(t) "}" constr(e) :=
   let tt := try solve[apply trc_step; t; eauto using get_set|apply trc_refl;eauto]
