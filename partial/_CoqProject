@@ -1,7 +1,6 @@
 -R . Comp
 Machine.v
 Memory.v
-LinearMemory.v
 Tactics.v
 Arith.v
 Exception.v
@@ -9,3 +8,4 @@ State.v
 LocalState.v
 ListIndex.v
 Lambda.v
+LinearMemory.v

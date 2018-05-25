@@ -5,6 +5,7 @@ Module LinearMemory <: Memory.
 Definition adr := nat.
 Definition adr0 := 0.
 Definition next := S.
+Definition empty_mem :=  fun T => (fun _ => None) : adr -> option T.
 
 Definition lta' := lta nat S.
 
@@ -49,6 +50,10 @@ Proof.
   subst. auto. auto.
 Qed. 
 
+Lemma empty_fresh : forall r {T}, ~ exists v, get r (empty_mem T) = Some v.
+Proof.
+  intros. intro Contra. destruct Contra. compute in H. inversion H.
+Qed. 
 
 Definition dec_eq := Nat.eq_dec.
   

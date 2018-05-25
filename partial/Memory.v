@@ -1,5 +1,6 @@
 (* Abstract specification of memory *)
 
+Create HintDb memory.
 
 Inductive lta T n (r : T) : T -> Prop :=
 | lea_self : lta T n r (n r)
@@ -25,6 +26,7 @@ Axiom next_fresh : forall (r r' : adr), r < r' -> r <> r'.
 
 Parameter Mem : Type -> Type.
 
+
 Parameter get : forall {T}, adr -> Mem T -> option T.
 Parameter set : forall {T}, adr -> T -> Mem T -> Mem T.
 
@@ -37,14 +39,19 @@ Axiom set_set : forall T (r : adr) (v v' : T) (s :  Mem T),
 Axiom set_get : forall T (r : adr) (v : T) (s :  Mem T),
     get r s = Some v -> set r v  s = s.
 
-
 Notation "r ∈ s" := (exists v, get r s = Some v) (at level 70) : memory_scope.
 Notation "x ∉ y" := (~(x ∈ y)) (at level 70) : memory_scope.
+
+
+Parameter empty_mem : forall T, Mem T.
+
+Axiom empty_fresh : forall r {T}, r ∉ empty_mem T.
 
 Notation "s ≤ t" := (forall r, r ∈ s -> get r s = get r t) (at level 70) : memory_scope.
 Notation "s ≥ t" := (t ≤ s) (at level 70) : memory_scope.
 
 Notation "r <= r'" := (r < r' \/ r = r') (at level 70) : memory_scope.
+
 
 Notation "s [ r ] = v" := (get r s = Some v) (at level 70).
 Notation "s [ r := v ]" := (set r v s) (at level 70).
@@ -55,8 +62,6 @@ Require Import Setoid.
 Module MemoryTheory (mem : Memory).
 
 Export mem.
-
-
 
     
 
@@ -73,6 +78,7 @@ Proof.
   intros. assert (exists t, get r s = Some t) as E by eauto.
   apply H in E. rewrite <- E. assumption.
 Qed.
+
 
 
 Lemma memle_dom T r (s t : Mem T) : s ≤ t -> r ∈ s -> r ∈ t.
@@ -101,6 +107,8 @@ Proof.
   - symmetry. apply get_get. auto.
 Qed.
 
+
+
 Lemma set_dom T r r' v (s : Mem T) : r ∈ s -> r ∈ (set r' v s).
 Proof.
   intro D. destruct (dec_eq r r').
@@ -123,7 +131,9 @@ Proof.
   - do 2 rewrite get_get by auto. apply L. eapply set_dom_fresh; eauto.
 Qed.
 
-  
+Hint Resolve memle_set memle_get memle_refl set_monotone memle_trans : memory.
+
+
 Lemma lta_trans (r1 r2 r3 : adr) : r1 < r2 -> r2 < r3 -> r1 < r3.
 Proof.
   intros R1 R2. induction R2;auto.
@@ -164,6 +174,12 @@ Hint Resolve lta_lea lea_lta lea_sym lea_refl.
 
 Definition freeFrom {T} (r : adr) (s : Mem T) := forall r', r <= r' -> r' ∉ s.
 
+Lemma freeFrom_empty r T : freeFrom r (empty_mem T).
+Proof.
+  intros r' I. apply empty_fresh.
+Qed.
+
+Hint Resolve freeFrom_empty.
 
 Lemma lta_next r r' : next r < r' -> r < r'.
 Proof.

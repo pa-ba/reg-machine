@@ -10,9 +10,11 @@ Require Import List.
 
 Require Export Machine.
 Require Export Memory.
-Module Calculation (mem: Memory) (mod : Machine mem).
-Module Meta := MetaTheory mem mod.
+Module Calculation (mem: Memory)(mod : Machine).
+Module Meta := MetaTheory mod.
 Export Meta.
+Module Mem := MemoryTheory mem.
+Export Mem.
 
 
 Import ListNotations.
@@ -67,6 +69,7 @@ Ltac solve_memle t :=
       apply memle_set;
       match goal with
       | [H: freeFrom _ _ |- _] => apply H; t
+      | [H: exists v, empty_mem _ [_] =  v |- _ ] => apply empty_fresh in H; contradiction; t
       | _ => t
       end
       | t
@@ -85,7 +88,7 @@ Tactic Notation  (at level 2)    "≤" "{?}" constr(e2) :=
   match goal with
     | [|- ?Rel ?lhs ?rhs] => check_rel Reach Rel;
                             let h := fresh "rewriting" in
-                            assert(rhs ≤ e2)
+                            assert(Pre rhs e2)
       | _ => fail 1 "goal is not a VM"
     end.
 
@@ -134,7 +137,7 @@ Tactic Notation  (at level 2)    "<|=" "{"tactic(t) "}" constr(e) :=
   <|= {{ dist' t' }} e .
 
 Tactic Notation  (at level 2)    "≤" "{"tactic(t) "}" constr(e) :=
-  <|= {{ apply Reach_cle; dist; apply clem; solve_memle t }} e .
+  <|= {{ apply Reach_cle; dist; constructor; solve_memle t }} e .
 
 Tactic Notation  (at level 2)    "=" "{"tactic(t) "}" constr(e) :=
   <|= {{ apply Reach_cle ;dist' t }} e .

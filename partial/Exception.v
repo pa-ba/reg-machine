@@ -4,7 +4,9 @@ Require Import List.
 Require Import Tactics.
 Require Import Coq.Program.Equality.
 Module Exception (mem : Memory).
-Import mem.
+Module Mem := MemoryTheory mem.
+Import Mem.
+
 
   
 (** * Syntax *)
@@ -63,16 +65,17 @@ Inductive Elem : Set :=
 
 (** * Virtual Machine *)
 
-Inductive Conf : Type :=
-| conf : Code -> nat -> Han -> Conf
-| fail : Han -> Conf.
+Inductive Conf' : Type :=
+| conf : Code -> nat -> Han -> Conf'
+| fail : Han -> Conf'.
 
+Definition Conf : Type := Conf' * Mem Elem.
 
 Notation "⟨ x , y , z , s ⟩" := (conf x y z, s).
 Notation "⟪ x , s ⟫" := (fail x, s).
 
 Reserved Notation "x ==> y" (at level 80, no associativity).
-Inductive VM : Conf * Mem Elem -> Conf * Mem Elem -> Prop :=
+Inductive VM : Conf -> Conf -> Prop :=
 | vm_load n a c s p : ⟨LOAD n c, a , p, s⟩ ==> ⟨c , n, p, s⟩ 
 | vm_add c s a r n p : s[r]=  NUM n -> ⟨ADD r c, a , p, s⟩ ==> ⟨c , n + a, p, s⟩
 | vm_store c s a r p : ⟨STORE r c, a, p, s⟩ ==> ⟨c , a, p, s[r:=NUM a]⟩
@@ -83,21 +86,27 @@ Inductive VM : Conf * Mem Elem -> Conf * Mem Elem -> Prop :=
 | vm_mark p r s a c c' : ⟨MARK r c' c, a, p, s⟩ ==> ⟨c, a, Some r, s[r:= HAN c' p]⟩
 where "x ==> y" := (VM x y).
 
+Inductive cle : Conf -> Conf -> Prop :=
+ | cle_mem  f s s' : s ≤ s' -> cle (f, s) (f, s').
+
+Hint Constructors cle.
 
 
 (** * Calculation *)
 
 (** Boilerplate to import calculation tactics *)
-Module Mon := Monotonicity mem.
-Import Mon.
 
-Module VM <: (Machine mem).
+Module VM <: Machine.
 Definition Conf := Conf.
+Definition Pre := cle.
 Definition Rel := VM.
-Definition MemElem := Elem.
-Lemma monotone : monotonicity VM.
+Definition MemElem := nat.
+Lemma monotone : monotonicity cle VM.
 prove_monotonicity. Qed.
+Lemma preorder : is_preorder cle.
+prove_preorder. Qed.
 End VM.
+
 Module VMCalc := Calculation mem VM.
 Import VMCalc.
 

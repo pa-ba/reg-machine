@@ -4,7 +4,9 @@ Require Import List.
 Require Import Tactics.
 Require Import Coq.Program.Equality.
 Module Arith (mem : Memory).
-Import mem.
+Module Mem := MemoryTheory mem.
+Import Mem.
+  
 
   
 (** * Syntax *)
@@ -39,30 +41,36 @@ Definition comp (x : Expr) : Code := comp' x adr0 HALT.
 
 (** * Virtual Machine *)
 
-Inductive Conf : Type := conf : Code -> nat -> Conf.
+Inductive Conf : Type := conf : Code -> nat -> Mem nat -> Conf.
 
-Notation "⟨ x , y , z ⟩" := (conf x y, z).
+Notation "⟨ x , y , z ⟩" := (conf x y z).
 
 Reserved Notation "x ==> y" (at level 80, no associativity).
-Inductive VM : Conf * Mem nat -> Conf * Mem nat -> Prop :=
+Inductive VM : Conf -> Conf -> Prop :=
 | vm_load n a c s : ⟨LOAD n c, a , s⟩ ==> ⟨c , n,  s⟩
 | vm_add c s a r n : s[r] = n -> ⟨ADD r c, a , s⟩ ==> ⟨c , n + a,  s⟩
 | vm_store c s a r : ⟨STORE r c, a , s⟩ ==> ⟨c , a, s[r:=a]⟩
 where "x ==> y" := (VM x y).
 
 
+Inductive cle : Conf -> Conf -> Prop :=
+  cle_mem x y z z' : z ≤ z' -> cle ⟨ x , y , z ⟩ ⟨ x , y , z' ⟩.
+
+Hint Constructors cle.
+
+
 (** * Calculation *)
 
 (** Boilerplate to import calculation tactics *)
-Module Mon := Monotonicity mem.
-Import Mon.
-
-Module VM <: (Machine mem).
+Module VM <: Machine.
 Definition Conf := Conf.
+Definition Pre := cle.
 Definition Rel := VM.
 Definition MemElem := nat.
-Lemma monotone : monotonicity VM.
+Lemma monotone : monotonicity cle VM.
 prove_monotonicity. Qed.
+Lemma preorder : is_preorder cle.
+prove_preorder. Qed.
 End VM.
 Module VMCalc := Calculation mem VM.
 Import VMCalc.

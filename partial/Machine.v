@@ -1,50 +1,51 @@
 Require Import Coq.Program.Equality.
 Require Export Memory.
 
-Module Monotonicity (mem: Memory).
-Export mem.
-Module mt := MemoryTheory mem.
-Export mt.
-Definition monotonicity {Conf e}
-           (vm : Conf * (Mem e) -> Conf * (Mem e) -> Prop) :
-     Prop := forall (C1 C2 : Conf) (m1 m2 m1' : Mem e),
-  m1 ≤ m1' ->
-  vm (C1, m1) (C2, m2)  ->
-  exists m2', vm (C1, m1') (C2, m2') /\ m2 ≤ m2'.
+Definition is_preorder {Conf} (pre : Conf -> Conf -> Prop) : Prop
+  := (forall c, pre c c) /\ (forall c1 c2 c3, pre c1 c2 -> pre c2 c3 -> pre c1 c3).
+    
 
-Ltac prove_monotonicity :=
-  do 5 intro; intros Hle Step;
-  dependent destruction Step;
-  eexists; (split; [econstructor| idtac]) ; eauto using memle_get, set_monotone.
+Definition monotonicity {Conf}
+           (pre : Conf -> Conf -> Prop) (vm : Conf -> Conf -> Prop) :
+     Prop := forall (C1 C1' C2 : Conf),
+  pre C1 C1' ->
+  vm C1 C2 ->
+  exists C2', vm C1' C2' /\ pre C2 C2'.
 
-End Monotonicity.
+Ltac prove_preorder :=
+  split;[
+    intros c; destruct c; eauto with memory
+  | intros c1 c2 c3 L1 L2; destruct c1, c2, c3;
+    inversion L1; inversion L2; subst; eauto with memory].
 
+Ltac prove_monotonicity1 :=
+  do 3 intro; intros Hle Step;
+  dependent destruction Step; inversion Hle.
 
-Module Type Machine (mem: Memory).
-Export mem.
+Ltac prove_monotonicity2 := subst;
+  eexists; (split; [econstructor| idtac]);  eauto with memory.
+
+Ltac prove_monotonicity := prove_monotonicity1; prove_monotonicity2.
+
+Module Type Machine.
 Parameter Conf : Type.
-Parameter MemElem : Type.
-Parameter Rel : Conf * (Mem MemElem) -> Conf * (Mem MemElem) -> Prop.
-Parameter monotone : forall (C1 C2 : Conf) (m1 m2 m1' : Mem MemElem),
-  m1 ≤ m1' ->
-  Rel (C1, m1) (C2, m2)  ->
-  exists m2', Rel (C1, m1') (C2, m2') /\ m2 ≤ m2'.
+Parameter Pre : Conf -> Conf -> Prop.
+Parameter Rel : Conf -> Conf -> Prop.
+Parameter preorder : is_preorder Pre.
+Parameter monotone : monotonicity Pre Rel.
 End Machine.
 
 Require Import List.
 Require Import Relations.
 
-Module MetaTheory (mem: Memory) (machine : Machine mem).
+Module MetaTheory (machine : Machine).
 Export machine.
-Module mt := MemoryTheory mem.
-Export mt.  
 Import ListNotations.
 
-Definition Config := (Conf * Mem MemElem)%type.
 
 Infix "==>" := Rel(at level 80, no associativity) : machine_scope.
 
-Definition trc := clos_refl_trans Config Rel.
+Definition trc := clos_refl_trans Conf Rel.
 
 Infix "=>>" := trc (at level 80, no associativity) : machine_scope.
 
@@ -70,45 +71,38 @@ Hint Resolve trc_step trc_step_trans.
 Hint Immediate trc_refl.
 
 Lemma trc_ind' :
-forall P : Config -> Config -> Prop,
-(forall c : Config, P c c) ->
-(forall c1 c2 c3 : Config, c1 ==> c2 -> c2 =>> c3 -> P c2 c3 -> P c1 c3) ->
-forall c c0 : Config, c =>> c0 -> P c c0.
+forall P : Conf -> Conf -> Prop,
+(forall c : Conf, P c c) ->
+(forall c1 c2 c3 : Conf, c1 ==> c2 -> c2 =>> c3 -> P c2 c3 -> P c1 c3) ->
+forall c c0 : Conf, c =>> c0 -> P c c0.
 Proof. 
   intros X Y Z c1 c2 S. unfold trc in S. rewrite -> clos_rt_rt1n_iff in S.
   induction S; eauto. rewrite <- clos_rt_rt1n_iff in S. eauto.
 Qed.
 
-Inductive cle : Config -> Config -> Prop :=
-  clem c m1 m2 : m1 ≤ m2 -> cle (c,m1) (c,m2).
+Infix "≤" := Pre  (at level 70) : machine_scope.
+Notation "x ≥ y" := (Pre y x) (at level 70) : machine_scope.
 
-Infix "≤" := cle  (at level 70) : machine_scope.
-Notation "x ≥ y" := (cle y x) (at level 70) : machine_scope.
-
-Hint Constructors cle.
-
-Lemma cle_trans (C1 C2 C3 : Config) : C1 ≤ C2 -> C2 ≤ C3 -> C1 ≤ C3.
+Lemma cle_trans (C1 C2 C3 : Conf) : C1 ≤ C2 -> C2 ≤ C3 -> C1 ≤ C3.
 Proof.
-  intros L1 L2. destruct C1, C2, C3. inversion L1. inversion L2. subst. constructor.
-  eapply memle_trans;eassumption.
+  intros. pose preorder as P. unfold is_preorder in *. destruct P. eauto.
 Qed.
-Lemma cle_refl (C : Config) : C ≤ C.
+Lemma cle_refl (C : Conf) : C ≤ C.
 Proof.
-  destruct C. auto.
+  intros. pose preorder as P. unfold is_preorder in *. destruct P. eauto.
 Qed.
 
 Hint Resolve cle_refl.
 
-Lemma monotone_step (C1 C1' C2 : Config) :
+Lemma monotone_step (C1 C1' C2 : Conf) :
   C1 ≤ C1' ->
   C1 ==> C2 ->
   exists C2', C1' ==> C2' /\ C2 ≤ C2' .
 Proof.
-  intros L S. destruct L as [C m1 m2 Ic]. destruct C2. eapply monotone in Ic; eauto. destruct Ic as [m2' SS].
-  destruct SS as [S' I]. eexists. split; eauto. 
+  intros. pose monotone as M. unfold monotonicity in M. eauto.
 Qed. 
 
-Lemma monotone_machine (C1 C1' C2 : Config) :
+Lemma monotone_machine (C1 C1' C2 : Conf) :
   C1 ≤ C1' ->
   C1 =>> C2 ->
   exists C2', C1' =>> C2' /\ C2 ≤ C2' .
@@ -119,13 +113,13 @@ Proof.
     apply IHM in Ic'. destruct Ic'. destruct H0. eexists. split. eapply trc_step_trans'; eassumption. assumption.
 Qed.
 
-Definition Reach (C1 C2 : Config) : Prop := exists C, C1 =>> C /\ C ≥ C2.
+Definition Reach (C1 C2 : Conf) : Prop := exists C, C1 =>> C /\ C ≥ C2.
 
 Infix "=|>" := Reach (at level 80, no associativity).
 
 Lemma Reach_refl C : C =|> C.
 Proof.
-  exists C. destruct C. split; auto.
+  exists C. split; auto.
 Qed.
 
 Hint Resolve Reach_refl.
@@ -185,7 +179,5 @@ Proof.
   - destruct H1. destruct H0 using trc_ind'. reflexivity. exfalso. apply H2. eexists. eassumption.
   - apply IHtrc. apply H2. split. eapply determ_factor; eassumption. destruct H1. assumption.
 Qed.
-
-Close Scope memory_scope.
-
 End MetaTheory.
+ 
