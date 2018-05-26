@@ -42,7 +42,6 @@ Axiom set_get : forall T (r : adr) (v : T) (s :  Mem T),
 Notation "r ∈ s" := (exists v, get r s = Some v) (at level 70) : memory_scope.
 Notation "x ∉ y" := (~(x ∈ y)) (at level 70) : memory_scope.
 
-
 Parameter empty_mem : forall T, Mem T.
 
 Axiom empty_fresh : forall r {T}, r ∉ empty_mem T.
@@ -52,16 +51,13 @@ Notation "s ≥ t" := (t ≤ s) (at level 70) : memory_scope.
 
 Notation "r <= r'" := (r < r' \/ r = r') (at level 70) : memory_scope.
 
-
 Notation "s [ r ] = v" := (get r s = Some v) (at level 70).
 Notation "s [ r := v ]" := (set r v s) (at level 70).
 
 End Memory.
 
 Require Import Setoid.  
-Module MemoryTheory (mem : Memory).
-
-Export mem.
+Module MemoryTheory (Export mem : Memory).
 
     
 
@@ -91,9 +87,9 @@ Proof.
   intros L1 L2 r D. rewrite L1 by assumption. eauto using memle_dom.
 Qed. 
 
-(* Lemma not_memle T r (s : Mem T) : r ∉ s -> get r s = None. *)
-(* Proof. *)
-(*   intros. *)
+Lemma not_memle T r (s : Mem T) : r ∉ s -> get r s = None.
+Proof.
+  intros. admit. Admitted.
 (*   remember (get r s) as G. destruct G. *)
 (*   - assert (r ∈ s) as E by eauto. contradiction. *)
 (*   - reflexivity. *)
@@ -212,4 +208,59 @@ Proof.
   apply set_dom_fresh in I; eauto. apply F in I; auto. apply lea_next. assumption.
 Qed.
 
+
 End MemoryTheory.
+
+
+
+Module Type Truncate (Import mem:Memory).
+
+Parameter truncate : forall {T}, adr -> Mem T -> Mem T.
+Parameter dec_lta : forall (r r' : adr),  {r < r'} + { ~(r < r')}.
+
+
+Axiom truncate_freeFrom : forall {T} (s : Mem T) r r', r <= r' -> r' ∉ truncate r s.
+Axiom truncate_get : forall {T} (s : Mem T) r r', ~(r <= r') -> get r' (truncate r s) = get r' s.
+Axiom funext : forall {T} (s t : Mem T), (forall r, get r s = get r t) -> s = t.
+
+End Truncate.
+
+Module Type TruncMem := Memory <+ Truncate.
+
+Module TruncMemTheory (Export mem : TruncMem).
+Module Mem := MemoryTheory mem.
+Export Mem.
+
+Definition dec_ltea : forall (r r' : adr),  {r <= r'} + { ~r <= r'}.
+Proof.
+  intros. pose (dec_lta r r') as L. pose (dec_eq r r') as E.
+  destruct L, E; tauto.
+Qed.
+
+Lemma truncate_dom T (s : Mem T) r r' : r' ∈ truncate r s -> r' ∈ s.
+Proof.
+  intros R. pose (dec_ltea r r') as P. destruct P as [P|P].
+  - eapply truncate_freeFrom in R; auto. contradiction.
+  - destruct R. rewrite truncate_get in H by assumption. eauto.
+Qed.
+  
+Lemma truncate_monotone T (s t : Mem T) r : s ≤ t -> truncate r s ≤ truncate r t.
+Proof.
+  intros L r' E. pose (dec_ltea r r') as Q. destruct Q.
+  - eapply truncate_freeFrom in E; eauto. contradiction.
+  - do 2 erewrite truncate_get by assumption. eauto using truncate_dom.
+Qed.
+
+Lemma truncate_set T (s : Mem T) r v : freeFrom r s -> truncate r (set r v s) = s.
+Proof.
+  intro F. apply funext. intros r'. unfold freeFrom in *. pose (dec_ltea r r') as P. destruct P.
+  - pose o as o'. apply F in o'. eapply truncate_freeFrom in o.
+    do 2 rewrite not_memle by eassumption. reflexivity.
+  - rewrite truncate_get by assumption. apply get_get. intro E. subst. tauto.
+Qed.
+
+
+
+Hint Resolve truncate_monotone : memory.
+
+End TruncMemTheory.
