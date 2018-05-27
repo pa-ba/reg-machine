@@ -1,4 +1,5 @@
-(** Calculation for the lambda calculus + arithmetic. *)
+(** Calculation for the lambda calculus + arithmetic using a call
+    stack for saving registers before a call. *)
 
 Require Import List.
 Require Import ListIndex.
