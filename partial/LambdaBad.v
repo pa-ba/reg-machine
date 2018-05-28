@@ -1,4 +1,4 @@
-(** Calculation for the lambda calculus + arithmetic. *)
+(** Calculation for the lambda calculus + arithmetic without stack. *)
 
 Require Import List.
 Require Import ListIndex.

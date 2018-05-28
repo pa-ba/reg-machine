@@ -7,7 +7,7 @@ Exception.v
 State.v
 LocalState.v
 ListIndex.v
-Lambda.v
+LambdaBad.v
 LambdaTruncate.v
 LambdaStack.v
 LambdaException.v
