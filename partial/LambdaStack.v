@@ -182,28 +182,6 @@ prove_preorder. Qed.
 End VM.
 
 
-
-(* Lemma rel_eq {T} {R : T -> T -> Prop} x y y' : R x y' -> y = y' -> R x y. *)
-(* Proof. intros. subst. auto. *)
-(* Qed . *)
-(* Ltac apply_eq t := eapply rel_eq; [apply t | repeat rewrite set_set; auto]. *)
-
-(* Module VM <: (Machine mem). *)
-(* Definition Conf := Conf. *)
-(* Definition Rel := VM. *)
-(* Definition MemElem := Elem. *)
-(* Lemma monotone : monotonicity VM. *)
-(*   do 5 intro; intros Hle Step; *)
-(*   dependent destruction Step; *)
-(*   try (eexists; (split; [econstructor| idtac]); eauto using memle_get, set_monotone). *)
-(*   eexists (empty [adr0 := CLO c e]). split. apply_eq vm_app. eauto using memle_get, set_monotone.  *)
-
-(*   apply Hle in H. *)
-
-  
-(*   Admitted. *)
-
-
 Module VMCalc := Calculation mem VM.
 Import VMCalc.
 

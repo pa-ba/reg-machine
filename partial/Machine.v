@@ -14,9 +14,19 @@ Definition monotonicity {Conf}
 
 Ltac prove_preorder :=
   split;[
-    intros c; destruct c; eauto with memory
+    intros c; destruct c;
+    repeat
+      (match goal with
+       | [H : _ * _ |- _] => destruct H
+       end);
+      eauto with memory
   | intros c1 c2 c3 L1 L2; destruct c1, c2, c3;
-    inversion L1; inversion L2; subst; eauto with memory].
+    inversion L1; inversion L2; subst;
+    repeat
+      (match goal with
+       | [H : (_, _) = (_, _) |- _] => inversion H; clear H
+       end); subst;
+    eauto with memory].
 
 Ltac prove_monotonicity1 :=
   do 3 intro; intros Hle Step;
