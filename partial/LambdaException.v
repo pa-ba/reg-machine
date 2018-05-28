@@ -52,12 +52,21 @@ Reserved Notation "x ⇓[ e ] y" (at level 80, no associativity).
 
 Inductive eval : Expr -> Env -> option Value -> Prop :=
 | eval_val e n : Val n ⇓[e] Some (Num n)
-| eval_add e x y m n : x ⇓[e] Some (Num m) -> y ⇓[e] Some (Num n) -> Add x y ⇓[e] Some (Num (m + n))
-| eval_var e i v : nth e i = Some v -> Var i ⇓[e] Some v
+| eval_add e x y v1 v2 : x ⇓[e] v1 -> y ⇓[e] v2
+                       -> Add x y ⇓[e] match v1 with
+                                       | Some (Num m) => match v2 with
+                                                   | Some (Num n) => Some (Num (m + n))
+                                                   | _ => None
+                                                   end
+                                       | _ => None
+                                       end
+| eval_var e i v : nth e i = v -> Var i ⇓[e] v
 | eval_abs e x : Abs x ⇓[e] Some (Clo x e)
-| eval_app e e' x x' x'' y y' : x ⇓[e] Some (Clo x' e') -> y ⇓[e] Some y' -> x' ⇓[y' :: e'] Some x'' -> App x y ⇓[e] Some x''
+| eval_app e e' x x' x'' y y' :
+    x ⇓[e] Some (Clo x' e') -> y ⇓[e] Some y' -> x' ⇓[y' :: e'] Some x''
+    -> App x y ⇓[e] Some x''
 | eval_throw e : Throw ⇓[e] None
-| eval_catch_fail e x h v v' : x ⇓[e] v -> h ⇓[e] v' ->
+| eval_catch e x h v v' : x ⇓[e] v -> h ⇓[e] v' ->
                                Catch x h ⇓[e]
                                      match v with
                                       | None => v'
@@ -176,7 +185,7 @@ Qed.
 Hint Resolve stackle_refl stackle_trans.
 
 Inductive cle : Conf -> Conf -> Prop :=
- | cle_mem  c a e k k' s s' h : stackle k k' -> s ≤ s' -> cle ⟨ c , a , e , h, k, s ⟩ ⟨ c , a , e, h , k', s' ⟩.
+ | cle_mem  f k k' s s' : stackle k k' -> s ≤ s' -> cle (f, k, s)  (f , k', s' ).
 
 Hint Constructors cle.
 
@@ -203,32 +212,12 @@ Lemma monotone : monotonicity cle VM.
   prove_monotonicity1;
     try (match goal with [H : stackle (_ :: _) _ |- _] => inversion H end)
     ; prove_monotonicity2.
-Admitted.
+Qed.
+  
 Lemma preorder : is_preorder cle.
-prove_preorder. Admitted.
+  prove_preorder. Qed.
 End VM.
 
-
-
-(* Lemma rel_eq {T} {R : T -> T -> Prop} x y y' : R x y' -> y = y' -> R x y. *)
-(* Proof. intros. subst. auto. *)
-(* Qed . *)
-(* Ltac apply_eq t := eapply rel_eq; [apply t | repeat rewrite set_set; auto]. *)
-
-(* Module VM <: (Machine mem). *)
-(* Definition Conf := Conf. *)
-(* Definition Rel := VM. *)
-(* Definition MemElem := Elem. *)
-(* Lemma monotone : monotonicity VM. *)
-(*   do 5 intro; intros Hle Step; *)
-(*   dependent destruction Step; *)
-(*   try (eexists; (split; [econstructor| idtac]); eauto using memle_get, set_monotone). *)
-(*   eexists (empty [adr0 := CLO c e]). split. apply_eq vm_app. eauto using memle_get, set_monotone.  *)
-
-(*   apply Hle in H. *)
-
-  
-(*   Admitted. *)
 
 
 Module VMCalc := Calculation mem VM.
@@ -385,20 +374,55 @@ Lemma determ_vm : determ VM.
 Qed.
   
 
-Definition terminates (p : Expr) : Prop := exists r, p ⇓[nil] r.
+Definition terminates (p : Expr) : Prop := exists r, p ⇓[nil] Some r.
 
 Theorem sound p a s h C : freeFrom adr0 s -> terminates p -> ⟨comp p, a, nil, h, nil, s⟩ =>>! C -> 
                           exists v s', C = ⟨HALT , conv v, nil, h, nil, s'⟩ /\ p ⇓[nil] Some v.
 Proof.
   unfold terminates. intros F T M. destruct T as [v T].
-  pose (spec p v nil adr0 HALT a s nil h F T) as H'.
+  pose (spec p (Some v) nil adr0 HALT a s nil h F T) as H'.
   unfold Reach in *. repeat autodestruct.
   pose (determ_trc determ_vm) as D.
-  unfold determ in D. inversion H0. destruct v; try inversion H1. subst.  inversion H2. subst.
+  unfold determ in D. inversion H0.   inversion H5. subst.
   exists v. eexists. split. eapply D. apply M. split.
   unfold comp.
   simpl in *. apply H. intro Contra. destruct Contra.
-  inversion H4. assumption.
+  inversion H1. assumption.
 Qed.
+
+Example test1 := (Catch (App (Abs (Throw)) (Val 2)) (Val 3)).
+
+Example test1_eval : exists v, test1 ⇓[ nil ] v.
+unfold test1.
+eexists.
+apply eval_catch.
+eapply eval_app.
+eapply eval_abs.
+eapply eval_val.
+
+Compute (comp test1).
+
+Lemma test a s h : ⟨(comp (Catch (App (Abs (Throw)) (Val 2)) (Val 3))), a, nil, h, nil, s⟩
+                     =>> ⟨HALT, a, nil, h, nil, s⟩.
+Proof.
+  unfold comp. simpl.
+  eapply trc_step_trans'.
+  eapply vm_mark.
+  eapply trc_step_trans'.
+  eapply vm_abs.
+  eapply trc_step_trans'.
+  eapply vm_store.
+  eapply trc_step_trans'.
+  eapply vm_push.
+  eapply trc_step_trans'.
+  eapply vm_app.
+  rewrite get_set. reflexivity.
+  eapply trc_step_trans'.
+  eapply vm_throw.
+  eapply trc_step_trans'.
+  eapply vm_fail.
+  rewrite get_set.
+  
+
 
 End Lambda.
