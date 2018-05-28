@@ -76,7 +76,7 @@ Ltac solve_memle t :=
     ].
 
 
-Ltac check_exp x y := let h := fresh "check" in assert (h: x = y) by reflexivity; clear h.
+Ltac check_exp x y := let h := fresh "check" in assert (h: x = y) by dist; clear h.
 
 Ltac check_rel Bidir Rel := first [check_exp Bidir Rel|
                              fail 2 "wrong goal; expected relation =>> but found" Rel].

@@ -33,7 +33,7 @@ Ltac prove_monotonicity1 :=
   dependent destruction Step; inversion Hle.
 
 Ltac prove_monotonicity2 := subst;
-  eexists; (split; [econstructor| idtac]);  eauto with memory.
+  eexists; (split; [try solve [econstructor; eauto with memory]| eauto with memory]).
 
 Ltac prove_monotonicity := prove_monotonicity1; prove_monotonicity2.
 
