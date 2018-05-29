@@ -83,7 +83,6 @@ Inductive Code : Set :=
 | RET : Code
 | APP : adr -> Code -> Code
 | ABS : Code -> Code -> Code
-| POP : Code -> Code
 | THROW : Code
 | UNMARK : Code -> Code
 | MARK : adr -> Code -> Code -> Code
@@ -94,7 +93,7 @@ Fixpoint comp' (e : Expr) (r : adr) (c : Code) : Code :=
     | Val n => LOAD n c
     | Add x y => comp' x r (STORE r (comp' y (next r) (ADD r c)))
     | Var i => LOOKUP i c
-    | App x y => comp' x r (CSTORE r (comp' y (next r) (APP r (POP c))))
+    | App x y => comp' x r (CSTORE r (comp' y (next r) (APP r c)))
     | Abs x => ABS (comp' x (next adr0) RET) c
     | Throw => THROW
     | Catch e1 e2 => MARK r (comp' e2 r c) (comp' e1 (next r) (UNMARK c))
@@ -141,7 +140,6 @@ Notation "⟪ x , k , s ⟫" := (fail x, k, s).
 Reserved Notation "x ==> y" (at level 80, no associativity).
 Inductive VM : Conf -> Conf -> Prop :=
  | vm_push n c s a e k h :  ⟨LOAD n c, a, e, h, k, s⟩ ==> ⟨c, Num' n, e, h, k, s⟩
- | vm_pop c s s' a e k h :  ⟨POP c, a, e, h, MEM s' :: k, s⟩ ==> ⟨c, a, e, h, k, s'⟩
  | vm_add c m n r s e k h : s[r] = VAL (Num' m) -> ⟨ADD r c, Num' n, e, h, k, s⟩
                                                      ==> ⟨c, Num'(m + n), e, h, k, s⟩
  | vm_add_fail s c c' e e' h r k : ⟨ADD r c, Clo' c' e', e, h, k, s⟩ ==> ⟪h, k, s⟫
@@ -155,7 +153,7 @@ Inductive VM : Conf -> Conf -> Prop :=
                               ==> ⟪h, k, s⟫
  | vm_lookup e i c v a s k h : nth e i = Some v -> ⟨LOOKUP i c, a, e, h, k, s⟩ ==> ⟨c, v, e, h, k, s⟩
  | vm_lookup_fail e i c a s k h : nth e i = None -> ⟨LOOKUP i c, a, e, h, k, s⟩ ==> ⟪h, k, s⟫
- | vm_env a c e e' s k h : s[adr0] = CLO c e -> ⟨RET, a, e', h, k, s⟩ ==> ⟨c, a, e, h, k, s⟩
+ | vm_env a c e e' s s' k h : s[adr0] = CLO c e -> ⟨RET, a, e', h, MEM s' :: k, s⟩ ==> ⟨c, a, e, h, k, s'⟩
  | vm_app c c' e e' v r s k h :
      s[r]=VAL (Clo' c' e') ->
      ⟨APP r c, v, e, h, k,s⟩ ==> ⟨c', Num' 0, v :: e', h, MEM (truncate r s) :: k, empty[adr0:=CLO c e]⟩
@@ -402,35 +400,30 @@ Proof.
     | Some v' => ⟨ c, conv v', convE e, h, k, s ⟩
     | None => ⟪ h, k, s ⟫
     end.
-  <== { apply vm_pop }
-      match x'' with
-      | Some v' => ⟨POP c, conv v', convE e, h, MEM s :: k, empty[adr0:=CLO (POP c) (convE e)] ⟩
-      | None => ⟪ h, k, s ⟫
-      end.
   <== { apply vm_env }
       match x'' with
-      | Some v' => ⟨RET, conv v', convE (y' :: e'), h, MEM s :: k, empty[adr0:=CLO (POP c) (convE e)]⟩
+      | Some v' => ⟨RET, conv v', convE (y' :: e'), h, MEM s :: k, empty[adr0:=CLO c (convE e)]⟩
       | None => ⟪ h, k, s ⟫
       end.
   <== { apply vm_fail_pop }
       match x'' with
-      | Some v' => ⟨RET, conv v', convE (y' :: e'), h, MEM s :: k, empty[adr0:=CLO (POP c) (convE e)]⟩
-      | None => ⟪ h, MEM s :: k, empty[adr0:=CLO (POP c) (convE e)] ⟫
+      | Some v' => ⟨RET, conv v', convE (y' :: e'), h, MEM s :: k, empty[adr0:=CLO c (convE e)]⟩
+      | None => ⟪ h, MEM s :: k, empty[adr0:=CLO c (convE e)] ⟫
       end.
   <|= {apply IHE3}
-      ⟨comp' x' (next adr0) RET, Num' 0, convE (y' :: e'), h, MEM s :: k, empty[adr0:=CLO (POP c) (convE e)]⟩.
+      ⟨comp' x' (next adr0) RET, Num' 0, convE (y' :: e'), h, MEM s :: k, empty[adr0:=CLO c (convE e)]⟩.
   = {auto}
-      ⟨comp' x' (next adr0) RET, Num' 0, conv y' :: convE e', h, MEM s:: k, empty[adr0:=CLO (POP c) (convE e)]⟩.
+      ⟨comp' x' (next adr0) RET, Num' 0, conv y' :: convE e', h, MEM s:: k, empty[adr0:=CLO c (convE e)]⟩.
   <== {apply_eq vm_app;try rewrite truncate_set}
-      ⟨APP r (POP c), conv y', convE e, h, k, s[r:=VAL (Clo' (comp' x' (next adr0) RET) (convE e'))]⟩.
+      ⟨APP r c, conv y', convE e, h, k, s[r:=VAL (Clo' (comp' x' (next adr0) RET) (convE e'))]⟩.
   <|= {apply IHE2}
-      ⟨comp' y (next r) (APP r (POP c)), (Clo' (comp' x' (next adr0) RET) (convE e')), convE e, h, k, s[r:=VAL (Clo' (comp' x' (next adr0) RET) (convE e'))]⟩.
+      ⟨comp' y (next r) (APP r c), (Clo' (comp' x' (next adr0) RET) (convE e')), convE e, h, k, s[r:=VAL (Clo' (comp' x' (next adr0) RET) (convE e'))]⟩.
   <== { apply vm_cstore }
-    ⟨CSTORE r (comp' y (next r) (APP r (POP c))), (Clo' (comp' x' (next adr0) RET) (convE e')), convE e, h, k, s⟩.
+    ⟨CSTORE r (comp' y (next r) (APP r c)), (Clo' (comp' x' (next adr0) RET) (convE e')), convE e, h, k, s⟩.
   = {auto}
-    ⟨CSTORE r (comp' y (next r) (APP r (POP c))), conv (Clo x' e'), convE e, h, k, s ⟩.
+    ⟨CSTORE r (comp' y (next r) (APP r c)), conv (Clo x' e'), convE e, h, k, s ⟩.
   <|= { apply IHE1 }
-    ⟨comp' x r (CSTORE r (comp' y (next r) (APP r (POP c)))), a, convE e, h, k, s ⟩.
+    ⟨comp' x r (CSTORE r (comp' y (next r) (APP r c))), a, convE e, h, k, s ⟩.
   [].
 
   begin
@@ -438,7 +431,7 @@ Proof.
   = {auto}
   match x' with
   | Some (Clo x'' e') => match y' with 
-                         | Some v => ⟨ APP r (POP c), conv v, convE e, h, k, s[ r := VAL (conv (Clo x'' e'))] ⟩
+                         | Some v => ⟨ APP r c, conv v, convE e, h, k, s[ r := VAL (conv (Clo x'' e'))] ⟩
                          | None => ⟪h, k, s ⟫
                          end
   | _ => ⟪h, k, s ⟫
@@ -446,20 +439,20 @@ Proof.
   ≤ {auto}
   match x' with
   | Some (Clo x'' e') => match y' with 
-                         | Some v => ⟨ APP r (POP c), conv v, convE e, h, k, s[ r := VAL (conv (Clo x'' e'))] ⟩
+                         | Some v => ⟨ APP r c, conv v, convE e, h, k, s[ r := VAL (conv (Clo x'' e'))] ⟩
                          | None => ⟪h, k, s[ r := VAL (conv (Clo x'' e'))] ⟫
                          end
   | _ => ⟪h, k, s ⟫
   end.
   <|= {apply IHE2}
   match x' with
-  | Some (Clo x'' e') => ⟨comp' y (next r) (APP r (POP c)), conv (Clo x'' e'), convE e, h, k, s[ r := VAL (conv (Clo x'' e'))] ⟩
+  | Some (Clo x'' e') => ⟨comp' y (next r) (APP r c), conv (Clo x'' e'), convE e, h, k, s[ r := VAL (conv (Clo x'' e'))] ⟩
   | _ => ⟪h, k, s ⟫
   end.
   = {auto}
     match x' with
     | Some v => match v with
-                | Clo x'' e' => ⟨comp' y (next r) (APP r (POP c)), conv (Clo x'' e'), convE e, h, k,
+                | Clo x'' e' => ⟨comp' y (next r) (APP r c), conv (Clo x'' e'), convE e, h, k,
                                  s[ r := VAL (conv (Clo x'' e'))] ⟩
                 | _ => ⟪h, k, s ⟫
                 end
@@ -468,18 +461,18 @@ Proof.
   <== {apply vm_cstore}
     match x' with
     | Some v => match v with
-                | Clo x'' e' => ⟨CSTORE r (comp' y (next r) (APP r (POP c))), conv (Clo x'' e'), convE e, h, k, s ⟩
+                | Clo x'' e' => ⟨CSTORE r (comp' y (next r) (APP r c)), conv (Clo x'' e'), convE e, h, k, s ⟩
                 | _ => ⟪h, k, s ⟫
                 end
     | _ => ⟪h, k, s ⟫
     end.
   <== {apply vm_cstore_fail}
     match x' with
-    | Some v => ⟨CSTORE r (comp' y (next r) (APP r (POP c))), conv v, convE e, h, k, s ⟩
+    | Some v => ⟨CSTORE r (comp' y (next r) (APP r c)), conv v, convE e, h, k, s ⟩
     | _ => ⟪h, k, s ⟫
     end.
   <|= {apply IHE1}
-      ⟨comp' x r (CSTORE r (comp' y (next r) (APP r (POP c)))), a, convE e, h, k, s ⟩.
+      ⟨comp' x r (CSTORE r (comp' y (next r) (APP r c))), a, convE e, h, k, s ⟩.
   [].
   
 Qed.
