@@ -64,8 +64,8 @@ Inductive Code : Set :=
 | STORE : adr -> Code -> Code
 | LOOKUP : nat -> Code -> Code
 | RET : adr -> Code
-| APP : adr -> Code -> Code
-| ABS : (adr -> Code) -> Code -> Code
+| CALL : adr -> Code -> Code
+| FUN : (adr -> Code) -> Code -> Code
 | HALT : Code.
 
 Fixpoint comp' (e : Expr) (r : adr) (c : Code) : Code :=
@@ -73,8 +73,8 @@ Fixpoint comp' (e : Expr) (r : adr) (c : Code) : Code :=
     | Val n => LOAD n c
     | Add x y => comp' x r (STORE r (comp' y (next r) (ADD r c)))
     | Var i => LOOKUP i c
-    | App x y => comp' x r (STORE r (comp' y (next r) (APP r c)))
-    | Abs x => ABS (fun r' => comp' x (next r') (RET r')) c
+    | App x y => comp' x r (STORE r (comp' y (next r) (CALL r c)))
+    | Abs x => FUN (fun r' => comp' x (next r') (RET r')) c
   end.
 
 Definition comp (e : Expr) : Code := comp' e adr0 HALT.
@@ -99,17 +99,17 @@ Notation "⟨ c , a , e , s ⟩" := (conf c a e s).
 
 Reserved Notation "x ==> y" (at level 80, no associativity).
 Inductive VM : Conf -> Conf -> Prop :=
- | vm_push n c s a e :  ⟨LOAD n c, a, e, s⟩ ==> ⟨c, Num' n, e, s⟩ 
+ | vm_load n c s a e :  ⟨LOAD n c, a, e, s⟩ ==> ⟨c, Num' n, e, s⟩ 
  | vm_add c m n r s e : s[r] = VAL (Num' m) -> ⟨ADD r c, Num' n, e, s⟩ 
                                                  ==> ⟨c, Num'(m + n), e, s⟩
  | vm_store c v r s e : ⟨STORE r c, v, e, s⟩ 
                         ==> ⟨c, v, e, s[r:=VAL v]⟩                                                 
  | vm_lookup e i c v a s : nth e i = Some v -> ⟨LOOKUP i c, a, e, s⟩ ==> ⟨c, v, e, s⟩ 
- | vm_env a r c e e' s  : s[r] = CLO c e -> ⟨RET r, a, e', s⟩ ==> ⟨c, a, e, s⟩
- | vm_app c c' e e' v r s :
+ | vm_ret a r c e e' s  : s[r] = CLO c e -> ⟨RET r, a, e', s⟩ ==> ⟨c, a, e, s⟩
+ | vm_call c c' e e' v r s :
      s[r]=VAL (Clo' c' e') ->
-     ⟨APP r c, v, e,s⟩ ==> ⟨c' r, Num' 0, v :: e', s[r:=CLO c e]⟩
- | vm_abs a c c' s e : ⟨ABS c' c, a, e, s⟩ ==> ⟨c, Clo' c' e, e, s⟩
+     ⟨CALL r c, v, e,s⟩ ==> ⟨c' r, Num' 0, v :: e', s[r:=CLO c e]⟩
+ | vm_fun a c c' s e : ⟨FUN c' c, a, e, s⟩ ==> ⟨c, Clo' c' e, e, s⟩
 where "x ==> y" := (VM x y).
 
 (** Conversion functions from semantics to VM *)
@@ -169,7 +169,7 @@ Proof.
 
   begin
   ⟨c, Num' n , convE e, s⟩.
-  <== { apply vm_push }
+  <== { apply vm_load }
   ⟨LOAD n c, a, convE e, s⟩.
   [].
 
@@ -201,8 +201,8 @@ Proof.
 
   begin
     ⟨c, Clo' (fun r' => comp' x (next r') (RET r')) (convE e), convE e, s ⟩.
-  <== { apply vm_abs }
-    ⟨ABS (fun r' => comp' x (next r') (RET r')) c, a, convE e, s ⟩.
+  <== { apply vm_fun }
+    ⟨FUN (fun r' => comp' x (next r') (RET r')) c, a, convE e, s ⟩.
   [].
 
 (** - [App x y ⇓[e] x''] *)
@@ -211,22 +211,22 @@ Proof.
     ⟨c, conv x'', convE e, s ⟩.
   ≤ { auto }
     ⟨c, conv x'', convE e, s[r:=CLO c (convE e)] ⟩.
-  <== { apply vm_env }
+  <== { apply vm_ret }
     ⟨RET r, conv x'', convE (y' :: e'), s[r:=CLO c (convE e)]⟩.
   <|= { apply IHE3 }
     ⟨comp' x' (next r) (RET r), Num' 0, convE (y' :: e'), s[r:=CLO c (convE e)]⟩.
   = {auto}
       ⟨comp' x' (next r) (RET r), Num' 0, conv y' :: convE e', s[r:=CLO c (convE e)]⟩.
-  <== {apply_eq vm_app}
-      ⟨APP r c, conv y', convE e, s[r:=VAL (Clo' (fun r' => comp' x' (next r') (RET r')) (convE e'))]⟩.
+  <== {apply_eq vm_call}
+      ⟨CALL r c, conv y', convE e, s[r:=VAL (Clo' (fun r' => comp' x' (next r') (RET r')) (convE e'))]⟩.
   <|= { apply IHE2 }
-    ⟨comp' y (next r) (APP r c), (Clo' (fun r' => comp' x' (next r') (RET r')) (convE e')), convE e, s[r:=VAL (Clo' (fun r' => comp' x' (next r') (RET r')) (convE e'))]⟩.
+    ⟨comp' y (next r) (CALL r c), (Clo' (fun r' => comp' x' (next r') (RET r')) (convE e')), convE e, s[r:=VAL (Clo' (fun r' => comp' x' (next r') (RET r')) (convE e'))]⟩.
   <== { apply vm_store }
-    ⟨STORE r (comp' y (next r) (APP r c)), (Clo' (fun r' => comp' x' (next r') (RET r')) (convE e')), convE e, s⟩.
+    ⟨STORE r (comp' y (next r) (CALL r c)), (Clo' (fun r' => comp' x' (next r') (RET r')) (convE e')), convE e, s⟩.
   = {auto}
-    ⟨STORE r (comp' y (next r) (APP r c)), conv (Clo x' e'), convE e,s ⟩.
+    ⟨STORE r (comp' y (next r) (CALL r c)), conv (Clo x' e'), convE e,s ⟩.
   <|= { apply IHE1 }
-    ⟨comp' x r (STORE r (comp' y (next r) (APP r c))), a, convE e, s ⟩.
+    ⟨comp' x r (STORE r (comp' y (next r) (CALL r c))), a, convE e, s ⟩.
   [].
 Qed.
   
