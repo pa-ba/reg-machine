@@ -4,9 +4,7 @@
 Require Import List.
 Require Import Tactics.
 Require Import Coq.Program.Equality.
-Module Exception (mem : Memory).
-Module Mem := MemoryTheory mem.
-Import Mem.
+Module Exception (Import mem : Memory).
 
 
   

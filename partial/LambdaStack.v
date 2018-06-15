@@ -5,9 +5,7 @@ Require Import List.
 Require Import ListIndex.
 Require Import Tactics.
 Require Import Coq.Program.Equality.
-Module Lambda (mem : Memory).
-Module Mem := MemoryTheory mem.
-Import Mem.
+Module Lambda (Import mem : EmptyMem).
 
 
 (** * Syntax *)
@@ -249,7 +247,7 @@ Proof.
   begin
     ⟨c, conv x'', convE e, k, s ⟩.
   <== { apply vm_ret }
-    ⟨RET, conv x'', convE (y' :: e'), s :: k, empty[adr0:=CLO c (convE e)]⟩.
+      ⟨RET, conv x'', convE (y' :: e'), s :: k, empty[adr0:=CLO c (convE e)]⟩.
   <|= {apply  IHE3}
       ⟨comp' x' (next adr0) RET, Num' 0, convE (y' :: e'), s :: k, empty[adr0:=CLO c (convE e)]⟩.
   = {auto}

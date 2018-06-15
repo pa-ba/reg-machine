@@ -4,10 +4,7 @@ Require Import List.
 Require Import ListIndex.
 Require Import Tactics.
 Require Import Coq.Program.Equality.
-Module Lambda (mem : Memory).
-Module Mem := MemoryTheory mem.
-Import Mem.
-
+Module Lambda (Import mem : Memory).
 
 (** * Syntax *)
 

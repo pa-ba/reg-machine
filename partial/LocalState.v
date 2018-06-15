@@ -3,10 +3,7 @@
 Require Import List.
 Require Import Tactics.
 Require Import Coq.Program.Equality.
-Module LocalState (mem : Memory).
-Module Mem := MemoryTheory mem.
-Import Mem.
-
+Module LocalState (Import mem : Memory).
 
   
 (** * Syntax *)

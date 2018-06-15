@@ -3,9 +3,7 @@
 Require Import List.
 Require Import Tactics.
 Require Import Coq.Program.Equality.
-Module Arith (mem : Memory).
-Module Mem := MemoryTheory mem.
-Import Mem.
+Module Arith (Import mem : Memory).
   
 
   

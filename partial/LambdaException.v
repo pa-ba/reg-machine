@@ -4,9 +4,7 @@ Require Import List.
 Require Import ListIndex.
 Require Import Tactics.
 Require Import Coq.Program.Equality.
-Module Lambda (mem : TruncMem).
-Module Mem := TruncMemTheory mem.
-Import Mem.
+Module Lambda (Import mem : TruncMem).
 
 
 (** * Syntax *)
@@ -540,7 +538,7 @@ Proof.
   eapply trc_step_trans'.
   eapply vm_fail_pop.
   eapply trc_step_trans'.
-  eapply vm_fail. rewrite truncate_set. rewrite get_set. reflexivity. apply freeFrom_set. auto.
+  eapply vm_fail. rewrite truncate_set. rewrite get_set. reflexivity. apply freeFrom_set. auto with memory.
   eapply trc_step_trans'.
   eapply vm_load.
   eapply trc_refl.

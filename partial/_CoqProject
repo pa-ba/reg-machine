@@ -1,9 +1,11 @@
 -R . Comp
-Machine.v
 Memory.v
+Machine.v
 Tactics.v
 Arith.v
-Exception.v
+ExceptionPointer.v
+ExceptionCode.v
+ExceptionTwo.v
 State.v
 LocalState.v
 ListIndex.v

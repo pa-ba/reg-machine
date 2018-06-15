@@ -13,8 +13,8 @@ Require Export Memory.
 Module Calculation (mem: Memory)(mod : Machine).
 Module Meta := MetaTheory mod.
 Export Meta.
-Module Mem := MemoryTheory mem.
-Export Mem.
+Export mem.
+
 
 
 Import ListNotations.
@@ -69,7 +69,7 @@ Ltac solve_memle t :=
       apply memle_set;
       match goal with
       | [H: freeFrom _ _ |- _] => apply H; t
-      | [H: exists v, empty_mem _ [_] =  v |- _ ] => apply empty_fresh in H; contradiction; t
+      (* | [H: exists v, empty_mem _ [_] =  v |- _ ] => apply empty_mem_free in H; contradiction; t *)
       | _ => t
       end
       | t
@@ -132,7 +132,7 @@ Tactic Notation  (at level 2)    "<|=" "{{"tactic(t1) "}}" constr(e2) :=
 
 
 Tactic Notation  (at level 2)    "<|=" "{"tactic(t) "}" constr(e) :=
-  let t' := try solve [t;eauto using freeFrom_set|apply Reach_refl;eauto]
+  let t' := try solve [t;eauto with memory|apply Reach_refl;eauto]
   in 
   <|= {{ dist' t' }} e .
 
