@@ -57,7 +57,7 @@ Fixpoint comp' (x : Expr) (r : adr) (c : Code) : Code :=
 
 Definition comp (x : Expr) : Code := comp' x adr0 HALT.
 
-Definition Han := option adr.
+Definition Han := adr.
 
 Inductive Elem : Set :=
 | NUM : nat -> Elem
@@ -80,10 +80,10 @@ Inductive VM : Conf -> Conf -> Prop :=
 | vm_add c s a r n p : s[r]=  NUM n -> ⟨ADD r c, a , p, s⟩ ==> ⟨c , n + a, p, s⟩
 | vm_store c s a r p : ⟨STORE r c, a, p, s⟩ ==> ⟨c , a, p, s[r:=NUM a]⟩
 | vm_throw a s p : ⟨THROW, a, p, s⟩ ==> ⟪p, s⟫
-| vm_fail p p' s c : s[p] = HAN c p' -> ⟪ Some p, s⟫ ==> ⟨c, 0, p', s⟩
+| vm_fail p p' s c : s[p] = HAN c p' -> ⟪ p, s⟫ ==> ⟨c, 0, p', s⟩
 | vm_unmark p p' s a c c' : s[p] = HAN c' p' ->
-                            ⟨UNMARK c, a, Some p, s⟩ ==> ⟨c, a, p', s⟩
-| vm_mark p r s a c c' : ⟨MARK r c' c, a, p, s⟩ ==> ⟨c, a, Some r, s[r:= HAN c' p]⟩
+                            ⟨UNMARK c, a,  p, s⟩ ==> ⟨c, a, p', s⟩
+| vm_mark p r s a c c' : ⟨MARK r c' c, a, p, s⟩ ==> ⟨c, a, r, s[r:= HAN c' p]⟩
 where "x ==> y" := (VM x y).
 
 Inductive cle : Conf -> Conf -> Prop :=
@@ -235,20 +235,20 @@ Proof.
   <== {apply vm_fail}
       match eval e1 with
       | Some n => ⟨c , n ,p, s⟩
-      | None => ⟪Some r, s[r:= HAN (comp' e2  r c) p]⟫
+      | None => ⟪r, s[r:= HAN (comp' e2  r c) p]⟫
       end.
   ≤ {auto}
       match eval e1 with
       | Some n => ⟨c , n ,p, s[r:= HAN (comp' e2  r c) p]⟩
-      | None => ⟪Some r, s[r:= HAN (comp' e2  r c) p]⟫
+      | None => ⟪r, s[r:= HAN (comp' e2  r c) p]⟫
       end.
   <== {eapply vm_unmark}
       match eval e1 with
-      | Some n => ⟨UNMARK c , n ,Some r, s[r:= HAN (comp' e2  r c) p]⟩
-      | None => ⟪Some r, s[r:= HAN (comp' e2  r c) p]⟫
+      | Some n => ⟨UNMARK c , n ,r, s[r:= HAN (comp' e2  r c) p]⟩
+      | None => ⟪r, s[r:= HAN (comp' e2  r c) p]⟫
       end.
   <|= {apply IHe1}
-      ⟨comp' e1 (next r) (UNMARK c) , a ,Some r, s[r:= HAN (comp' e2  r c) p]⟩.
+      ⟨comp' e1 (next r) (UNMARK c) , a ,r, s[r:= HAN (comp' e2  r c) p]⟩.
   <== {apply vm_mark}
       ⟨MARK r (comp' e2  r c) (comp' e1 (next r) (UNMARK c)) , a ,p, s⟩.
   [].
