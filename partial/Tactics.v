@@ -140,7 +140,13 @@ Tactic Notation  (at level 2)    "≤" "{"tactic(t) "}" constr(e) :=
   <|= {{ apply Reach_cle; dist; constructor; solve_memle t }} e .
 
 Tactic Notation  (at level 2)    "=" "{"tactic(t) "}" constr(e) :=
-  <|= {{ apply Reach_cle ;dist' t }} e .
+  match goal with
+  | [|- ?Rel ?lhs ?rhs] => check_rel Reach Rel;
+                           first[ let h := fresh "rewriting" in
+                                  assert(h:rhs = e) by dist' t;
+                                  rewrite h; clear h | fail 2]
+  | _ => fail 1 "goal is not a VM"
+  end.
 
 
 Lemma rel_eq {T} {R : T -> T -> Prop} x y y' : R x y' -> y = y' -> R x y.

@@ -134,6 +134,13 @@ Qed.
 
 Hint Resolve Reach_refl.
 
+Lemma Reach_eq C1 C2 : C1 = C2 -> C1 =|> C1.
+Proof.
+  auto.
+Qed.
+
+
+
 Lemma Reach_trans C1 C2 C3 : C1 =|> C2 -> C2 =|> C3 -> C1 =|> C3.
 Proof.
   intros L1 L2.
@@ -160,12 +167,6 @@ Proof.
   intros L. apply Reach_trc. apply trc_step. assumption.
 Qed.
 
-
-
-Lemma Reach_eq C1 C2 : C1 = C2 -> C1 =|> C1.
-Proof.
-  intros E. rewrite E. apply Reach_refl.
-Qed.
 
 Definition determ {A} (R : A -> A -> Prop) : Prop := forall C C1 C2, R C C1 -> R C C2 -> C1 = C2.
 
