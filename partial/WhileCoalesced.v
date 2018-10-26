@@ -220,16 +220,13 @@ Proof.
   <== { eapply vm_jmpz_nzero }
       (if n =? 0 then ⟨ c, 0, q', s ⟩
        else ⟨ JMPZ c (comp' y (next r) (JUMP r)), n, q', s[r:=CODE (comp' (While x y) r c)] ⟩).
-  <== {eapply vm_jmpz_zero}
-      (if n =? 0 then ⟨ JMPZ c (comp' y (next r) (JUMP r)), 0, q', s ⟩
-       else ⟨ JMPZ c (comp' y (next r) (JUMP r)), n, q', s[r:=CODE (comp' (While x y) r c)] ⟩).
-  <== {eapply vm_jmpz_zero}
+  <== { eapply vm_jmpz_zero}
       (if n =? 0 then ⟨ JMPZ c (comp' y (next r) (JUMP r)), 0, q', s ⟩
        else ⟨ JMPZ c (comp' y (next r) (JUMP r)), n, q', s[r:=CODE (comp' (While x y) r c)] ⟩).
   ≤ { auto }  
       (if n =? 0 then ⟨ JMPZ c (comp' y (next r) (JUMP r)), 0, q', s[r:=CODE (comp' (While x y) r c)] ⟩
        else ⟨ JMPZ c (comp' y (next r) (JUMP r)), n, q', s[r:=CODE (comp' (While x y) r c)] ⟩).
-  <|= { first [(assert (n = 0) by auto; subst; auto) | auto] }
+  <|= { (assert (n = 0) by auto; subst) }
       ⟨ JMPZ c (comp' y (next r) (JUMP r)), n, q', s[r:=CODE (comp' (While x y) r c)] ⟩.
   <|= { apply IHE }
       ⟨ comp' x (next r) (JMPZ c (comp' y (next r) (JUMP r))), a, q, s[r:=CODE (comp' (While x y) r c)] ⟩.
