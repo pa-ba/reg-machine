@@ -149,7 +149,7 @@ Proof.
   generalize dependent a.
   generalize dependent s.
   generalize dependent r.
-  dependent induction E; intros.
+  induction E; intros.
 
 (** Calculation of the compiler *)
 
@@ -255,6 +255,45 @@ Proof.
   unfold comp.
   simpl in *. apply H. intro Contra. destruct Contra.
   inversion H1. assumption.
+Qed.
+
+
+(* Finally, we show that the semantics of Expr is equivalent to the
+semantics below, which is in a more conventional style. *)
+
+Reserved Notation "⟪ x , q ⟫ ⇓' ⟪ y , q' ⟫" (at level 80, no associativity).
+
+Inductive eval' : Expr -> State -> Value -> State -> Prop :=
+| eval_val'  n q : ⟪Val n, q⟫ ⇓' ⟪n, q⟫
+| eval_add' q q' q'' x y m n :
+    ⟪x, q⟫ ⇓' ⟪m,q'⟫ -> ⟪y,q'⟫ ⇓' ⟪n, q''⟫ -> ⟪Add x y, q⟫ ⇓' ⟪m + n, q''⟫
+| eval_get'  q : ⟪Get, q⟫ ⇓' ⟪q, q⟫
+| eval_put'  q q' q'' v n x y :
+    ⟪x, q⟫ ⇓' ⟪n,q'⟫ -> ⟪y, n⟫ ⇓' ⟪v, q''⟫ -> ⟪Put x y , q⟫ ⇓' ⟪v,q''⟫
+| eval_step' x y q n m q' q'' v q''':
+    ⟪x, q⟫ ⇓' ⟪n,q'⟫ ->
+    n <> 0 -> ⟪y,q'⟫ ⇓' ⟪m,q''⟫ -> ⟪While x y, q''⟫ ⇓' ⟪v,q'''⟫ ->
+    ⟪While x y, q⟫ ⇓' ⟪v,q'''⟫
+| eval_while_stop' x y q n q' :
+    ⟪x, q⟫ ⇓' ⟪n,q'⟫ ->
+    n = 0 ->
+    ⟪While x y, q⟫ ⇓' ⟪0,q'⟫
+where "⟪ x , q ⟫ ⇓' ⟪ y , q' ⟫" := (eval' x q y q').
+
+Hint Constructors eval eval'.
+
+Theorem sem_eq x q y q' : ⟪ x , q ⟫ ⇓' ⟪ y , q' ⟫ <->  ⟪ x , q ⟫ ⇓ ⟪ y , q' ⟫.
+Proof.
+  split;intro E.
+  * induction E;eauto.
+    - econstructor; intros; try first [eassumption|contradiction].
+    - econstructor; intros; try first [eauto|contradiction]; subst; contradiction H0; auto.
+      Unshelve. auto. auto.
+  * induction E;eauto.
+    remember (n =? 0) as Q. destruct Q.
+    - apply nat_eq in HeqQ. rewrite H3, H4 by assumption. eapply eval_while_stop'.
+      apply IHE. assumption.
+    - apply nat_neq in HeqQ. eauto.
 Qed.
 
 End While.
