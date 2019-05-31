@@ -39,7 +39,7 @@ Axiom memle_trans : forall {T} (s t u : Mem T), s ≤ t -> t ≤ u -> s ≤ u.
 
 
 Axiom memle_set : forall {T} (s : Mem T) r v, freeFrom r s -> s ≤ set r v s.
-Axiom memle_get : forall {T} (s t : Mem T) r v, s ≤ t -> get r s = v -> get r t = v.
+Axiom memle_get : forall {T} (s t : Mem T) r v, s ≤ t -> get r s = Some v -> get r t = Some v.
 Axiom set_monotone : forall {T} (s t : Mem T) r v, s ≤ t -> set r v s ≤ set r v t .
 
 
