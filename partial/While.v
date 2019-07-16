@@ -95,7 +95,7 @@ where "x ==> y" := (VM x y).
 (** Conversion functions from semantics to VM *)
 
 Inductive cle : Conf -> Conf -> Prop :=
- | cle_mem  c a e s s' : s ≤ s' -> cle ⟨ c , a , e , s ⟩ ⟨ c , a , e , s' ⟩.
+ | cle_mem  c a e s s' : s ⊑ s' -> cle ⟨ c , a , e , s ⟩ ⟨ c , a , e , s' ⟩.
 
 Hint Constructors cle.
 
@@ -147,7 +147,7 @@ Proof.
 
   begin
     ⟨c, m + n, q'', s⟩.
-  ≤ { auto }
+  ⊑ { auto }
     ⟨c, m + n, q'', s[r:=VAL m]⟩ .
   <== { apply vm_add }
     ⟨ADD r c, n, q'', s[r:=VAL m]⟩ .
@@ -172,7 +172,7 @@ Proof.
     ⟨ c, v, q'', s ⟩.
   <|= { apply IHE2 }
     ⟨ comp' y r c, n, n, s ⟩.
-  ≤ {auto}
+  ⊑ {auto}
     ⟨ comp' y r c, n, n, s ⟩.
   <== { apply vm_put }
     ⟨ PUT (comp' y r c), n, q', s ⟩.
@@ -186,7 +186,7 @@ Proof.
     ⟨ c, v, q''', s ⟩.
   <|= { eapply IHE3 }
     ⟨ comp' (While x y) r c, m, q'', s ⟩.
-  ≤ { auto }
+  ⊑ { auto }
     ⟨ comp' (While x y) r c, m, q'', s[r:=CODE (comp' (While x y) r c)] ⟩.
   <== { apply vm_jump }
     ⟨ JUMP r, m, q'', s[r:=CODE (comp' (While x y) r c)] ⟩.
@@ -204,7 +204,7 @@ Proof.
     ⟨ c, 0, q', s ⟩.
   <== { apply vm_jmpz_zero }
       ⟨ JMPZ c (comp' y (next r) (JUMP r)) , 0, q', s ⟩.
-  ≤ { auto }
+  ⊑ { auto }
     ⟨ JMPZ c (comp' y (next r) (JUMP r)) , 0, q', s[r:=CODE (comp' (While x y) r c)] ⟩.
   <|= {eapply IHE}
     ⟨ comp' x (next r) (JMPZ c (comp' y (next r) (JUMP r))) , a, q, s[r:=CODE (comp' (While x y) r c)] ⟩.

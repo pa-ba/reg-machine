@@ -178,7 +178,7 @@ Definition convE : Env -> Env' := map conv.
 
 Inductive stackle : Lam -> Lam -> Prop :=
 | stackle_empty : stackle nil nil
-| stackle_cons_mem s s' k k' : s ≤ s' -> stackle k k' -> stackle (MEM s :: k) (MEM s' :: k')
+| stackle_cons_mem s s' k k' : s ⊑ s' -> stackle k k' -> stackle (MEM s :: k) (MEM s' :: k')
 | stackle_cons_han k k' : stackle k k' -> stackle (MARKED :: k) (MARKED :: k').
 
 Hint Constructors stackle : memory.
@@ -196,7 +196,7 @@ Qed.
 Hint Resolve stackle_refl stackle_trans.
 
 Inductive cle : Conf -> Conf -> Prop :=
- | cle_mem  f k k' s s' : stackle k k' -> s ≤ s' -> cle (f, k, s)  (f , k', s' ).
+ | cle_mem  f k k' s s' : stackle k k' -> s ⊑ s' -> cle (f, k, s)  (f , k', s' ).
 
 Hint Constructors cle.
 
@@ -277,7 +277,7 @@ Proof.
                            end
         | _ => ⟪ h, k, s ⟫
       end.
-  ≤ {auto}
+  ⊑ {auto}
       match  m with
         | Some (Num m') => match n with
                            | Some (Num n') => ⟨ c, Num' (m' + n'), convE e, h, k, s[r:=VAL m'] ⟩
@@ -342,7 +342,7 @@ Proof.
             | Some v'' => ⟨ c, conv v'', convE e, h, k, s ⟩
             | None => ⟨ comp y r c, Num' 0, convE e, h, k, s ⟩
       end.
-    ≤ {eauto}
+    ⊑ {eauto}
       match m with
             | Some v'' => ⟨ c, conv v'', convE e, h, k, s ⟩
             | None => ⟨ comp y r c, Num' 0, convE e, h, k, s[r:= HAN (comp y r c) (convE e) h] ⟩
@@ -352,7 +352,7 @@ Proof.
             | Some v'' => ⟨ c, conv v'', convE e, h, k, s ⟩
             | None => ⟪ Some r, MARKED :: k, s[r:= HAN (comp y r c) (convE e) h] ⟫
       end.
-    ≤ {eauto}
+    ⊑ {eauto}
       match m with
             | Some v'' => ⟨ c, conv v'', convE e, h, k, s[r:= HAN (comp y r c) (convE e) h] ⟩
             | None => ⟪ Some r, MARKED :: k, s[r:= HAN (comp y r c) (convE e) h] ⟫
@@ -437,7 +437,7 @@ Proof.
                          end
   | _ => ⟪h, k, s ⟫
   end.
-  ≤ {auto}
+  ⊑ {auto}
   match x' with
   | Some (Clo x'' e') => match y' with 
                          | Some v => ⟨ APP r c, conv v, convE e, h, k, s[ r := CLO (comp x'' (next first) RET) (map conv e')] ⟩

@@ -20,9 +20,9 @@ Parameter freeFrom : forall {T}, Reg -> Mem T -> Prop.
 Parameter memle : forall {T}, Mem T -> Mem T -> Prop.
 
 (* Notations *)
-Notation "s ≤ t" := (memle s t) (at level 70) : memory_scope.
+Notation "s ⊑ t" := (memle s t) (at level 70) : memory_scope.
 Open Scope memory_scope.
-Notation "s ≥ t" := (t ≤ s) (at level 70) : memory_scope.
+Notation "s ⊒ t" := (t ⊑ s) (at level 70) : memory_scope.
 Notation "s [ r ] = v" := (get r s = Some v) (at level 70).
 Notation "s [ r := v ]" := (set r v s) (at level 70).
 
@@ -37,7 +37,7 @@ Axiom get_set : forall T (r : Reg) (v : T) (s :  Mem T),
 
 (* Property 3 *)
 
-Axiom memle_set : forall {T} (s : Mem T) r v, freeFrom r s -> s ≤ set r v s.
+Axiom memle_set : forall {T} (s : Mem T) r v, freeFrom r s -> s ⊑ set r v s.
 
 (* Property 4 *)
 
@@ -45,16 +45,16 @@ Axiom freeFrom_set : forall {T} r (v : T) s, freeFrom r s ->  freeFrom (next r) 
 
 (* Property 5 *)
 
-Axiom memle_refl : forall {T} (s : Mem T), s ≤ s.
-Axiom memle_trans : forall {T} (s t u : Mem T), s ≤ t -> t ≤ u -> s ≤ u.
+Axiom memle_refl : forall {T} (s : Mem T), s ⊑ s.
+Axiom memle_trans : forall {T} (s t u : Mem T), s ⊑ t -> t ⊑ u -> s ⊑ u.
 
 (* Property 6 *)
 
-Axiom set_monotone : forall {T} (s t : Mem T) r v, s ≤ t -> set r v s ≤ set r v t .
+Axiom set_monotone : forall {T} (s t : Mem T) r v, s ⊑ t -> set r v s ⊑ set r v t .
 
 (* Property 7 *)
 
-Axiom memle_get : forall {T} (s t : Mem T) r v, s ≤ t -> get r s = Some v -> get r t = Some v.
+Axiom memle_get : forall {T} (s t : Mem T) r v, s ⊑ t -> get r s = Some v -> get r t = Some v.
 
 
 Hint Resolve memle_set memle_get memle_refl set_monotone memle_trans freeFrom_set empty_mem_free : memory.
@@ -81,7 +81,7 @@ modelling of stack frames. *)
 Module Type Truncate (Import mem:Memory).
 Parameter truncate : forall {T}, Reg -> Mem T -> Mem T.
 
-Axiom truncate_monotone : forall {T} (s t : Mem T) r, s ≤ t -> truncate r s ≤ truncate r t.
+Axiom truncate_monotone : forall {T} (s t : Mem T) r, s ⊑ t -> truncate r s ⊑ truncate r t.
 Axiom truncate_set : forall {T} (s : Mem T) v r , freeFrom r s -> truncate r (set r v s) = s.
 
 Hint Resolve truncate_monotone truncate_set : memory.

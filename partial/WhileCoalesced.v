@@ -103,7 +103,7 @@ where "x ==> y" := (VM x y).
 (** Conversion functions from semantics to VM *)
 
 Inductive cle : Conf -> Conf -> Prop :=
- | cle_mem  c a e s s' : s ≤ s' -> cle ⟨ c , a , e , s ⟩ ⟨ c , a , e , s' ⟩.
+ | cle_mem  c a e s s' : s ⊑ s' -> cle ⟨ c , a , e , s ⟩ ⟨ c , a , e , s' ⟩.
 
 Hint Constructors cle.
 
@@ -165,7 +165,7 @@ Proof.
 
   begin
     ⟨c, m + n, q'', s⟩.
-  ≤ { auto }
+  ⊑ { auto }
     ⟨c, m + n, q'', s[r:=VAL m]⟩ .
   <== { apply vm_add }
     ⟨ADD r c, n, q'', s[r:=VAL m]⟩ .
@@ -190,7 +190,7 @@ Proof.
     ⟨ c, v, q'', s ⟩.
   <|= { apply IHE2 }
     ⟨ comp' y r c, n, n, s ⟩.
-  ≤ {auto}
+  ⊑ {auto}
     ⟨ comp' y r c, n, n, s ⟩.
   <== { apply vm_put }
     ⟨ PUT (comp' y r c), n, q', s ⟩.
@@ -208,7 +208,7 @@ Proof.
   <|= {rewrite H3, H4}
       (if n =? 0 then ⟨ c, 0, q', s ⟩
        else ⟨ comp' (While x y) r c, m, q'', s ⟩).
-  ≤ { auto }
+  ⊑ { auto }
       (if n =? 0 then ⟨ c, 0, q', s ⟩
        else ⟨ comp' (While x y) r c, m, q'', s[r:=CODE (comp' (While x y) r c)] ⟩).
   <== { apply vm_jump }
@@ -223,7 +223,7 @@ Proof.
   <== { eapply vm_jmpz_zero}
       (if n =? 0 then ⟨ JMPZ c (comp' y (next r) (JUMP r)), 0, q', s ⟩
        else ⟨ JMPZ c (comp' y (next r) (JUMP r)), n, q', s[r:=CODE (comp' (While x y) r c)] ⟩).
-  ≤ { auto }  
+  ⊑ { auto }  
       (if n =? 0 then ⟨ JMPZ c (comp' y (next r) (JUMP r)), 0, q', s[r:=CODE (comp' (While x y) r c)] ⟩
        else ⟨ JMPZ c (comp' y (next r) (JUMP r)), n, q', s[r:=CODE (comp' (While x y) r c)] ⟩).
   <|= { (assert (n = 0) by auto; subst) }

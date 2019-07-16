@@ -101,7 +101,7 @@ Inductive VM : Conf -> Conf -> Prop :=
 where "x ==> y" := (VM x y).
 
 Inductive cle : Conf -> Conf -> Prop :=
- | cle_mem  f s s' : s ≤ s' -> cle (f, s) (f, s').
+ | cle_mem  f s s' : s ⊑ s' -> cle (f, s) (f, s').
 
 Hint Constructors cle.
 
@@ -170,7 +170,7 @@ Proof.
                       end
     | (None, q') => ⟪p, q', s⟫
     end.
-  ≤ { auto }
+  ⊑ { auto }
     match eval e1 q with
     | (Some n, q') => match eval e2 q' with
                       | (Some n', q'') => ⟨c , n + n' ,p, q'', s[r:=VAL n]⟩
@@ -233,7 +233,7 @@ Proof.
       | (Some n, q') => ⟨c , n ,p, q', s⟩
       | (None, q') => ⟨comp' e2  r c , 0 ,p, q', s⟩
       end.
-  ≤ { eauto }
+  ⊑ { eauto }
       match eval e1 q with
       | (Some n, q') => ⟨c , n ,p, q', s⟩
       | (None, q') => ⟨comp' e2  r c , 0 ,p, q', s[r:= HAN (comp' e2  r c) p]⟩
@@ -243,7 +243,7 @@ Proof.
       | (Some n, q') => ⟨c , n ,p, q', s⟩
       | (None, q') => ⟪Some r, q', s[r:= HAN (comp' e2  r c) p]⟫
       end.
-  ≤ {auto}
+  ⊑ {auto}
       match eval e1 q with
       | (Some n, q') => ⟨c , n ,p, q', s[r:= HAN (comp' e2  r c) p]⟩
       | (None, q') => ⟪Some r, q', s[r:= HAN (comp' e2  r c) p]⟫

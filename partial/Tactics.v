@@ -84,7 +84,7 @@ Ltac check_rel Bidir Rel := first [check_exp Bidir Rel|
 Tactic Notation "[]" := apply Reach_refl.
 
 
-Tactic Notation  (at level 2)    "≤" "{?}" constr(e2) :=
+Tactic Notation  (at level 2)    "⊑" "{?}" constr(e2) :=
   match goal with
     | [|- ?Rel ?lhs ?rhs] => check_rel Reach Rel;
                             let h := fresh "rewriting" in
@@ -136,7 +136,7 @@ Tactic Notation  (at level 2)    "<|=" "{"tactic(t) "}" constr(e) :=
   in 
   <|= {{ dist' t' }} e .
 
-Tactic Notation  (at level 2)    "≤" "{"tactic(t) "}" constr(e) :=
+Tactic Notation  (at level 2)    "⊑" "{"tactic(t) "}" constr(e) :=
   <|= {{ apply Reach_cle; dist; constructor; solve_memle t }} e .
 
 Tactic Notation  (at level 2)    "=" "{"tactic(t) "}" constr(e) :=

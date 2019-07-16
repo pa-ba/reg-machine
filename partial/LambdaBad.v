@@ -121,7 +121,7 @@ Definition convE : Env -> Env' := map conv.
 
 
 Inductive cle : Conf -> Conf -> Prop :=
- | cle_mem  c a e s s' : s ≤ s' -> cle ⟨ c , a , e , s ⟩ ⟨ c , a , e , s' ⟩.
+ | cle_mem  c a e s s' : s ⊑ s' -> cle ⟨ c , a , e , s ⟩ ⟨ c , a , e , s' ⟩.
 
 Hint Constructors cle.
 
@@ -172,7 +172,7 @@ Proof.
 
   begin
     ⟨c, Num' (m + n), convE e, s⟩.
-  ≤ { auto }
+  ⊑ { auto }
     ⟨c, Num' (m + n), convE e, s[r:=VAL (Num' m)]⟩ .
   <== { apply vm_add }
     ⟨ADD r c, Num' n, convE e, s[r:=VAL (Num' m)]⟩ .
@@ -204,7 +204,7 @@ Proof.
   
   begin
     ⟨c, conv x'', convE e, s ⟩.
-  ≤ { auto }
+  ⊑ { auto }
     ⟨c, conv x'', convE e, s[r:=CLO c (convE e)] ⟩.
   <== { apply vm_ret }
     ⟨RET r, conv x'', convE (y' :: e'), s[r:=CLO c (convE e)]⟩.

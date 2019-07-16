@@ -23,9 +23,9 @@ Definition freeFrom {T} (r : Reg) (m : Mem T) :=
 Definition memle {T} (m m' : Mem T) :=
   forall r v, m r = Some v -> m' r = Some v.
 
-Notation "s ≤ t" := (memle s t) (at level 70) : memory_scope.
+Notation "s ⊑ t" := (memle s t) (at level 70) : memory_scope.
 Open Scope memory_scope.
-Notation "s ≥ t" := (t ≤ s) (at level 70) : memory_scope.
+Notation "s ⊒ t" := (t ⊑ s) (at level 70) : memory_scope.
 
 (* Property 1 *)
 Lemma empty_mem_free: forall T, freeFrom first (empty T). 
@@ -43,7 +43,7 @@ Qed.
 
 (* Property 3 *)
 
-Lemma memle_set : forall {T} (s : Mem T) r v, freeFrom r s -> s ≤ set r v s.
+Lemma memle_set : forall {T} (s : Mem T) r v, freeFrom r s -> s ⊑ set r v s.
 Proof.
   unfold freeFrom, set, memle. intros.
   remember (r0 =? r) as R. symmetry in HeqR. destruct R. apply beq_nat_true in HeqR. subst.
@@ -61,19 +61,19 @@ Qed.
 
 (* Property 5 *)
 
-Lemma memle_refl : forall {T} (s : Mem T), s ≤ s.
+Lemma memle_refl : forall {T} (s : Mem T), s ⊑ s.
 Proof.
   unfold memle. intros. assumption.
 Qed.
 
-Lemma memle_trans : forall {T} (s t u : Mem T), s ≤ t -> t ≤ u -> s ≤ u.
+Lemma memle_trans : forall {T} (s t u : Mem T), s ⊑ t -> t ⊑ u -> s ⊑ u.
 Proof.
   unfold memle. intros. eauto.
 Qed.
 
 (* Property 6 *)
 
-Lemma set_monotone : forall {T} (s t : Mem T) r v, s ≤ t -> set r v s ≤ set r v t .
+Lemma set_monotone : forall {T} (s t : Mem T) r v, s ⊑ t -> set r v s ⊑ set r v t .
 Proof.
   unfold set, memle. intros. destruct (r0 =? r); eauto.
 Qed.
@@ -81,7 +81,7 @@ Qed.
 
 (* Property 7 *)
 
-Lemma memle_get : forall {T} (s t : Mem T) r v, s ≤ t -> get r s = Some v -> get r t = Some v.
+Lemma memle_get : forall {T} (s t : Mem T) r v, s ⊑ t -> get r s = Some v -> get r t = Some v.
 Proof.
   unfold get, memle. intros. auto.
 Qed.
@@ -101,7 +101,7 @@ Qed.
 Definition truncate {T} (r : Reg) (m : Mem T) : Mem T :=
   fun r' => if r <=? r' then None else m r'.
 
-Lemma truncate_monotone : forall {T} (s t : Mem T) r, s ≤ t -> truncate r s ≤ truncate r t.
+Lemma truncate_monotone : forall {T} (s t : Mem T) r, s ⊑ t -> truncate r s ⊑ truncate r t.
 Proof.
   unfold truncate, memle. intros.
   destruct (r <=? r0);auto.

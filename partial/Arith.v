@@ -52,7 +52,7 @@ where "x ==> y" := (VM x y).
 
 
 Inductive cle : Conf -> Conf -> Prop :=
-  cle_mem x y z z' : z ≤ z' -> cle ⟨ x , y , z ⟩ ⟨ x , y , z' ⟩.
+  cle_mem x y z z' : z ⊑ z' -> cle ⟨ x , y , z ⟩ ⟨ x , y , z' ⟩.
 
 Hint Constructors cle.
 
@@ -101,7 +101,7 @@ Proof.
     ⟨ c, eval (Add e1 e2), s ⟩.
   = {auto}
     ⟨ c, eval e1 + eval e2, s ⟩.
-  ≤ {auto}
+  ⊑ {auto}
     ⟨c, eval e1 + eval e2, s[r:=eval e1]⟩.
   <== {apply vm_add}
       ⟨ADD r c, eval e2, s[r:=eval e1]⟩.

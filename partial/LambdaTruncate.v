@@ -128,7 +128,7 @@ Definition convE : Env -> Env' := map conv.
 
 Inductive stackle : Lam -> Lam -> Prop :=
 | stackle_empty : stackle nil nil
-| stackle_cons s s' k k' : s ≤ s' -> stackle k k' -> stackle (s :: k) (s' :: k').
+| stackle_cons s s' k k' : s ⊑ s' -> stackle k k' -> stackle (s :: k) (s' :: k').
 
 Hint Constructors stackle : memory.
 
@@ -146,7 +146,7 @@ Qed.
 Hint Resolve stackle_refl stackle_trans.
 
 Inductive cle : Conf -> Conf -> Prop :=
- | cle_mem  c a e k k' s s' : stackle k k' -> s ≤ s' -> cle ⟨ c , a , e , k, s ⟩ ⟨ c , a , e , k', s' ⟩.
+ | cle_mem  c a e k k' s s' : stackle k k' -> s ⊑ s' -> cle ⟨ c , a , e , k, s ⟩ ⟨ c , a , e , k', s' ⟩.
 
 Hint Constructors cle.
 
@@ -214,7 +214,7 @@ Proof.
 
   begin
     ⟨c, Num' (m + n), convE e, k, s⟩.
-  ≤ {auto}
+  ⊑ {auto}
     ⟨c, Num' (m + n), convE e, k, s[r:=VAL (Num' m)]⟩ .
   <== { apply vm_add }
     ⟨ADD r c, Num' n, convE e, k, s[r:=VAL (Num' m)]⟩ .

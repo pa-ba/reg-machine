@@ -77,7 +77,7 @@ Inductive VM : Conf -> Conf -> Prop :=
 where "x ==> y" := (VM x y).
 
 Inductive cle : Conf -> Conf -> Prop :=
- | cle_mem  f s s' : s ≤ s' -> cle (f, s) (f, s').
+ | cle_mem  f s s' : s ⊑ s' -> cle (f, s) (f, s').
 
 Hint Constructors cle.
 
@@ -147,7 +147,7 @@ Proof.
                 end
     | None => ⟨f , 0 ,s⟩
     end.
-  ≤ { auto }
+  ⊑ { auto }
     match eval e1 with
     | Some n => match eval e2 with
                 | Some n' => ⟨c , n + n' ,s[r:=VAL n]⟩
@@ -163,7 +163,7 @@ Proof.
                   end
       | None => ⟨f , 0 ,s⟩
       end.
-  ≤ { auto }
+  ⊑ { auto }
     match eval e1 with
     | Some n => match eval e2 with
                 | Some n' => ⟨ADD r c , n', s[r:=VAL n]⟩

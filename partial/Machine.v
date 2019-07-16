@@ -90,14 +90,14 @@ Proof.
   induction S; eauto. rewrite <- clos_rt_rt1n_iff in S. eauto.
 Qed.
 
-Infix "≤" := Pre  (at level 70) : machine_scope.
-Notation "x ≥ y" := (Pre y x) (at level 70) : machine_scope.
+Infix "⊑" := Pre  (at level 70) : machine_scope.
+Notation "x ⊒ y" := (Pre y x) (at level 70) : machine_scope.
 
-Lemma cle_trans (C1 C2 C3 : Conf) : C1 ≤ C2 -> C2 ≤ C3 -> C1 ≤ C3.
+Lemma cle_trans (C1 C2 C3 : Conf) : C1 ⊑ C2 -> C2 ⊑ C3 -> C1 ⊑ C3.
 Proof.
   intros. pose preorder as P. unfold is_preorder in *. destruct P. eauto.
 Qed.
-Lemma cle_refl (C : Conf) : C ≤ C.
+Lemma cle_refl (C : Conf) : C ⊑ C.
 Proof.
   intros. pose preorder as P. unfold is_preorder in *. destruct P. eauto.
 Qed.
@@ -105,17 +105,17 @@ Qed.
 Hint Resolve cle_refl.
 
 Lemma monotone_step (C1 C1' C2 : Conf) :
-  C1 ≤ C1' ->
+  C1 ⊑ C1' ->
   C1 ==> C2 ->
-  exists C2', C1' ==> C2' /\ C2 ≤ C2' .
+  exists C2', C1' ==> C2' /\ C2 ⊑ C2' .
 Proof.
   intros. pose monotone as M. unfold monotonicity in M. eauto.
 Qed. 
 
 Lemma monotone_machine (C1 C1' C2 : Conf) :
-  C1 ≤ C1' ->
+  C1 ⊑ C1' ->
   C1 =>> C2 ->
-  exists C2', C1' =>> C2' /\ C2 ≤ C2' .
+  exists C2', C1' =>> C2' /\ C2 ⊑ C2' .
 Proof.
   intros I M. generalize dependent C1'. dependent induction M using trc_ind';intros.
   - exists C1'. split; eauto.
@@ -123,7 +123,7 @@ Proof.
     apply IHM in Ic'. destruct Ic'. destruct H0. eexists. split. eapply trc_step_trans'; eassumption. assumption.
 Qed.
 
-Definition Reach (C1 C2 : Conf) : Prop := exists C, C1 =>> C /\ C ≥ C2.
+Definition Reach (C1 C2 : Conf) : Prop := exists C, C1 =>> C /\ C ⊒ C2.
 
 Infix "=|>" := Reach (at level 80, no associativity).
 
@@ -152,7 +152,7 @@ Proof.
   - eapply cle_trans;eassumption.
 Qed. 
 
-Lemma Reach_cle C1 C2 : C1 ≥ C2 -> C1 =|> C2.
+Lemma Reach_cle C1 C2 : C1 ⊒ C2 -> C1 =|> C2.
 Proof.
   intros L. eexists. split. apply trc_refl. assumption.
 Qed.
