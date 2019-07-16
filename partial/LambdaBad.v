@@ -4,7 +4,7 @@ Require Import List.
 Require Import ListIndex.
 Require Import Tactics.
 Require Import Coq.Program.Equality.
-Module Lambda (Import mem : Memory).
+Module Lambda (Import mem : SetMem). (* memory with additional axiom set_set *)
 
 (** * Syntax *)
 
@@ -57,15 +57,15 @@ where "x ⇓[ e ] y" := (eval x e y).
 
 Inductive Code : Set :=
 | LOAD : nat -> Code -> Code
-| ADD : adr -> Code -> Code
-| STORE : adr -> Code -> Code
+| ADD : Reg -> Code -> Code
+| STORE : Reg -> Code -> Code
 | LOOKUP : nat -> Code -> Code
-| RET : adr -> Code
-| CALL : adr -> Code -> Code
-| FUN : (adr -> Code) -> Code -> Code
+| RET : Reg -> Code
+| CALL : Reg -> Code -> Code
+| FUN : (Reg -> Code) -> Code -> Code
 | HALT : Code.
 
-Fixpoint comp' (e : Expr) (r : adr) (c : Code) : Code :=
+Fixpoint comp' (e : Expr) (r : Reg) (c : Code) : Code :=
   match e with
     | Val n => LOAD n c
     | Add x y => comp' x r (STORE r (comp' y (next r) (ADD r c)))
@@ -74,23 +74,23 @@ Fixpoint comp' (e : Expr) (r : adr) (c : Code) : Code :=
     | Abs x => FUN (fun r' => comp' x (next r') (RET r')) c
   end.
 
-Definition comp (e : Expr) : Code := comp' e adr0 HALT.
+Definition comp (e : Expr) : Code := comp' e first HALT.
 
 (** * Virtual Machine *)
 
 Inductive Value' : Set :=
 | Num' : nat -> Value'
-| Clo' : (adr -> Code) -> list Value' -> Value'.
+| Clo' : (Reg -> Code) -> list Value' -> Value'.
 
 Definition Env' := list Value'.
 
-Inductive Elem : Set :=
-| VAL : Value' -> Elem 
-| CLO : Code -> Env' -> Elem
+Inductive RVal : Set :=
+| VAL : Value' -> RVal 
+| CLO : Code -> Env' -> RVal
 .
 
 Inductive Conf : Type := 
-| conf : Code -> Value' -> Env' -> Mem Elem -> Conf.
+| conf : Code -> Value' -> Env' -> Mem RVal -> Conf.
 
 Notation "⟨ c , a , e , s ⟩" := (conf c a e s).
 
@@ -133,7 +133,7 @@ Module VM <: Machine.
 Definition Conf := Conf.
 Definition Pre := cle.
 Definition Rel := VM.
-Definition MemElem := nat.
+
 Lemma monotone : monotonicity cle VM.
 prove_monotonicity. Qed.
 Lemma preorder : is_preorder cle.
@@ -141,8 +141,6 @@ prove_preorder. Qed.
 End VM.
 Module VMCalc := Calculation mem VM.
 Import VMCalc.
-
-
 
 (** Specification of the compiler *)
 
@@ -202,8 +200,8 @@ Proof.
     ⟨FUN (fun r' => comp' x (next r') (RET r')) c, a, convE e, s ⟩.
   [].
 
-(** - [App x y ⇓[e] x''] *)
-
+  (** - [App x y ⇓[e] x''] *)
+  
   begin
     ⟨c, conv x'', convE e, s ⟩.
   ≤ { auto }
@@ -236,11 +234,11 @@ Qed.
 
 Definition terminates (p : Expr) : Prop := exists r, p ⇓[nil] r.
 
-Theorem sound p a s C : freeFrom adr0 s -> terminates p -> ⟨comp p, a, nil, s⟩ =>>! C -> 
+Theorem sound p a s C : freeFrom first s -> terminates p -> ⟨comp p, a, nil, s⟩ =>>! C -> 
                           exists v s', C = ⟨HALT , conv v, nil, s'⟩ /\ p ⇓[nil] v.
 Proof.
   unfold terminates. intros F T M. destruct T as [v T].
-  pose (spec p v nil adr0 HALT a s F T) as H'.
+  pose (spec p v nil first HALT a s F T) as H'.
   unfold Reach in *. repeat autodestruct.
   pose (determ_trc determ_vm) as D.
   unfold determ in D. inversion H0. subst. exists v. eexists. split. eapply D. apply M. split.

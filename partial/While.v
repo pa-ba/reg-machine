@@ -35,35 +35,20 @@ Inductive eval : Expr -> State -> Value -> State -> Prop :=
     ⟪While x y, q⟫ ⇓ ⟪0,q'⟫
 where "⟪ x , q ⟫ ⇓ ⟪ y , q' ⟫" := (eval x q y q').
 
-
-
-(* Inductive eval : (Expr * State) -> (Value * State) -> Prop := *)
-(* | eval_val  n q : (Val n, q) ⇓ (n, q) *)
-(* | eval_add q q' q'' x y m n : (x, q) ⇓ (m,q') -> (y,q') ⇓ (n, q'') -> (Add x y, q) ⇓ (m + n, q'') *)
-(* | eval_while x y q q' n r : (x, q) ⇓ (n,q') -> evalW n x y q r -> (While x y, q) ⇓ r *)
-(* | eval_get  q : (Get, q) ⇓ (q, q) *)
-(* | eval_put  q q' r n x y : (x, q) ⇓ (n,q') -> (y, n) ⇓ r -> (Put x y , q) ⇓ r *)
-(* where "x ⇓ y" := (eval x y) *)
-
-(* with evalW : Value -> Expr -> Expr -> State -> (Value * State) -> Prop := *)
-(*      | evalW_zero x y q : evalW 0 x y q (0,q) *)
-(*      | evalW_step x y q q' n m r : n > 0 -> (y,q) ⇓ (m,q') -> (While x y, q') ⇓ r -> evalW n x y q r *)
-(* . *)
-
 (** * Compiler *)
 
 Inductive Code : Set :=
 | LOAD : nat -> Code -> Code
-| ADD : adr -> Code -> Code
-| STORE : adr -> Code -> Code
+| ADD : Reg -> Code -> Code
+| STORE : Reg -> Code -> Code
 | GET : Code -> Code                           
-| JUMP : adr -> Code
+| JUMP : Reg -> Code
 | JMPZ : Code -> Code -> Code
-| LABEL : adr -> Code -> Code
+| LABEL : Reg -> Code -> Code
 | PUT : Code -> Code
 | HALT : Code.
 
-Fixpoint comp' (e : Expr) (r : adr) (c : Code) : Code :=
+Fixpoint comp' (e : Expr) (r : Reg) (c : Code) : Code :=
   match e with
     | Val n => LOAD n c
     | Add x y => comp' x r (STORE r (comp' y (next r) (ADD r c)))
@@ -72,7 +57,7 @@ Fixpoint comp' (e : Expr) (r : adr) (c : Code) : Code :=
     | Put x y => comp' x r (PUT (comp' y r c))
   end.
 
-Definition comp (e : Expr) : Code := comp' e adr0 HALT.
+Definition comp (e : Expr) : Code := comp' e first HALT.
 
 
 Inductive Elem : Set :=
@@ -122,7 +107,6 @@ Module VM <: Machine.
 Definition Conf := Conf.
 Definition Pre := cle.
 Definition Rel := VM.
-Definition MemElem := nat.
 Lemma monotone : monotonicity cle VM.
 prove_monotonicity. Qed.
 Lemma preorder : is_preorder cle.
@@ -238,11 +222,11 @@ Qed.
 
 Definition terminates (p : Expr) : Prop := exists n q, ⟪p, 0⟫ ⇓ ⟪n,q⟫.
 
-Theorem sound p a s C : freeFrom adr0 s -> terminates p -> ⟨comp p, a, 0, s⟩ =>>! C -> 
+Theorem sound p a s C : freeFrom first s -> terminates p -> ⟨comp p, a, 0, s⟩ =>>! C -> 
                           exists n s' q, C = ⟨HALT , n, q, s'⟩ /\ ⟪p,0⟫ ⇓ ⟪n,q⟫.
 Proof.
   unfold terminates. intros F T M. destruct T as [n T]. destruct T as [q T].
-  pose (spec p n 0 q adr0 HALT a s F T) as H'.
+  pose (spec p n 0 q first HALT a s F T) as H'.
   unfold Reach in *. repeat autodestruct.
   pose (determ_trc determ_vm) as D.
   unfold determ in D. inversion H0. subst. exists n. eexists. exists q. split. eapply D. apply M. split.

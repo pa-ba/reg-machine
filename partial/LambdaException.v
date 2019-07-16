@@ -78,30 +78,30 @@ where "x ⇓[ e ] y" := (eval x e y).
 
 Inductive Code : Set :=
 | LOAD : nat -> Code -> Code
-| ADD : adr -> Code -> Code
-| STORE : adr -> Code -> Code
-| CSTORE : adr -> Code -> Code
+| ADD : Reg -> Code -> Code
+| STORE : Reg -> Code -> Code
+| STC : Reg -> Code -> Code
 | LOOKUP : nat -> Code -> Code
 | RET : Code
-| CALL : adr -> Code -> Code
-| FUN : Code -> Code -> Code
+| APP : Reg -> Code -> Code
+| ABS : Code -> Code -> Code
 | THROW : Code
 | UNMARK : Code -> Code
-| MARK : adr -> Code -> Code -> Code
+| MARK : Reg -> Code -> Code -> Code
 | HALT : Code.
 
-Fixpoint comp' (e : Expr) (r : adr) (c : Code) : Code :=
+Fixpoint comp (e : Expr) (r : Reg) (c : Code) : Code :=
   match e with
     | Val n => LOAD n c
-    | Add x y => comp' x r (STORE r (comp' y (next r) (ADD r c)))
+    | Add x y => comp x r (STORE r (comp y (next r) (ADD r c)))
     | Var i => LOOKUP i c
-    | App x y => comp' x r (CSTORE r (comp' y (next r) (CALL r c)))
-    | Abs x => FUN (comp' x (next adr0) RET) c
+    | App x y => comp x r (STC r (comp y (next r) (APP r c)))
+    | Abs x => ABS (comp x (next first) RET) c
     | Throw => THROW
-    | Catch e1 e2 => MARK r (comp' e2 r c) (comp' e1 (next r) (UNMARK c))
+    | Catch e1 e2 => MARK r (comp e2 r c) (comp e1 (next r) (UNMARK c))
   end.
 
-Definition comp (e : Expr) : Code := comp' e adr0 HALT.
+Definition compile (e : Expr) : Code := comp e first HALT.
 
 (** * Virtual Machine *)
 
@@ -112,54 +112,53 @@ Inductive Value' : Set :=
 
 Definition Env' := list Value'.
 
-Definition Han := option adr.
+Definition Han := option Reg.
 
 
-Inductive Elem : Set :=
-| VAL : Value' -> Elem 
-| CLO : Code -> Env' -> Elem
-| HAN : Code -> Env' -> Han -> Elem
+Inductive RVal : Set :=
+| VAL : nat -> RVal 
+| CLO : Code -> Env' -> RVal
+| HAN : Code -> Env' -> Han -> RVal
 .
 
-Notation empty := (empty_mem Elem).
-
 Inductive SElem :=
-| MEM : Mem Elem -> SElem
+| MEM : Mem RVal -> SElem
 | MARKED : SElem.
 
-Definition Stack : Type := list SElem.
+Definition Lam : Type := list SElem.
 
 Inductive Conf' : Type := 
 | conf : Code -> Value' -> Env' -> Han -> Conf'
 | fail : Han -> Conf'.
 
-Definition Conf : Type := Conf' * Stack * Mem Elem.
+Definition Conf : Type := Conf' * Lam * Mem RVal.
 
 Notation "⟨ x , y , z , w , k , s ⟩" := (conf x y z w, k, s).
 Notation "⟪ x , k , s ⟫" := (fail x, k, s).
 
+Definition empty := (@empty RVal).
 
 Reserved Notation "x ==> y" (at level 80, no associativity).
 Inductive VM : Conf -> Conf -> Prop :=
  | vm_load n c s a e k h :  ⟨LOAD n c, a, e, h, k, s⟩ ==> ⟨c, Num' n, e, h, k, s⟩
- | vm_add c m n r s e k h : s[r] = VAL (Num' m) -> ⟨ADD r c, Num' n, e, h, k, s⟩
+ | vm_add c m n r s e k h : s[r] = VAL m -> ⟨ADD r c, Num' n, e, h, k, s⟩
                                                      ==> ⟨c, Num'(m + n), e, h, k, s⟩
  | vm_add_fail s c c' e e' h r k : ⟨ADD r c, Clo' c' e', e, h, k, s⟩ ==> ⟪h, k, s⟫
  | vm_store c n r s e k h : ⟨STORE r c, Num' n, e, h, k, s⟩
-                              ==> ⟨c, Num' n, e, h, k, s[r:=VAL (Num' n)]⟩
+                              ==> ⟨c, Num' n, e, h, k, s[r:=VAL n]⟩
  | vm_store_fail c r s e k h c' e' : ⟨STORE r c, Clo' c' e', e, h, k, s⟩
                                        ==>  ⟪h, k, s⟫
- | vm_cstore c c' e' r s e k h : ⟨CSTORE r c, Clo' c' e', e, h, k, s⟩
-                                   ==> ⟨c, Clo' c' e', e, h, k, s[r:=VAL (Clo' c' e')]⟩
- | vm_cstore_fail c n r s e k h : ⟨CSTORE r c, Num' n, e, h, k, s⟩
+ | vm_stc c c' e' r s e k h : ⟨STC r c, Clo' c' e', e, h, k, s⟩
+                                   ==> ⟨c, Clo' c' e', e, h, k, s[r:=CLO c' e']⟩
+ | vm_stc_fail c n r s e k h : ⟨STC r c, Num' n, e, h, k, s⟩
                               ==> ⟪h, k, s⟫
  | vm_lookup e i c v a s k h : nth e i = Some v -> ⟨LOOKUP i c, a, e, h, k, s⟩ ==> ⟨c, v, e, h, k, s⟩
  | vm_lookup_fail e i c a s k h : nth e i = None -> ⟨LOOKUP i c, a, e, h, k, s⟩ ==> ⟪h, k, s⟫
- | vm_ret a c e e' s s' k h : s[adr0] = CLO c e -> ⟨RET, a, e', h, MEM s' :: k, s⟩ ==> ⟨c, a, e, h, k, s'⟩
- | vm_call c c' e e' v r s k h :
-     s[r]=VAL (Clo' c' e') ->
-     ⟨CALL r c, v, e, h, k,s⟩ ==> ⟨c', Num' 0, v :: e', h, MEM (truncate r s) :: k, empty[adr0:=CLO c e]⟩
- | vm_fun a c c' s e k h : ⟨FUN c' c, a, e, h, k, s⟩ ==> ⟨c, Clo' c' e, e, h, k, s⟩
+ | vm_ret a c e e' s s' k h : s[first] = CLO c e -> ⟨RET, a, e', h, MEM s' :: k, s⟩ ==> ⟨c, a, e, h, k, s'⟩
+ | vm_app c c' e e' v r s k h :
+     s[r]=CLO c' e' ->
+     ⟨APP r c, v, e, h, k,s⟩ ==> ⟨c', Num' 0, v :: e', h, MEM (truncate r s) :: k, empty[first:=CLO c e]⟩
+ | vm_abs a c c' s e k h : ⟨ABS c' c, a, e, h, k, s⟩ ==> ⟨c, Clo' c' e, e, h, k, s⟩
  | vm_throw a e h k s : ⟨THROW, a, e, h, k, s⟩ ==> ⟪h, k, s⟫
  | vm_fail p p' s c k e : s[p] = HAN c e p' -> ⟪ Some p, MARKED :: k, s⟫ ==> ⟨c, Num' 0, e, p', k, s⟩
  | vm_fail_pop p s s' k : ⟪ p, MEM s' :: k, s⟫ ==> ⟪ p, k, s'⟫
@@ -172,12 +171,12 @@ where "x ==> y" := (VM x y).
 Fixpoint conv (v : Value) : Value' :=
   match v with
     | Num n => Num' n
-    | Clo x e => Clo' (comp' x (next adr0) RET) (map conv e)
+    | Clo x e => Clo' (comp x (next first) RET) (map conv e)
   end.
 
 Definition convE : Env -> Env' := map conv.
 
-Inductive stackle : Stack -> Stack -> Prop :=
+Inductive stackle : Lam -> Lam -> Prop :=
 | stackle_empty : stackle nil nil
 | stackle_cons_mem s s' k k' : s ≤ s' -> stackle k k' -> stackle (MEM s :: k) (MEM s' :: k')
 | stackle_cons_han k k' : stackle k k' -> stackle (MARKED :: k) (MARKED :: k').
@@ -219,7 +218,7 @@ Module VM <: Machine.
 Definition Conf := Conf.
 Definition Pre := cle.
 Definition Rel := VM.
-Definition MemElem := nat.
+
 Lemma monotone : monotonicity cle VM.
   prove_monotonicity1;
     try (match goal with [H : stackle (_ :: _) _ |- _] => inversion H end)
@@ -241,7 +240,7 @@ Import VMCalc.
 
 Theorem spec p v e r c a s k h :
   freeFrom r s ->  p ⇓[e] v ->
-  ⟨comp' p r c, a, convE e, h, k, s⟩ =|> match v with
+  ⟨comp p r c, a, convE e, h, k, s⟩ =|> match v with
                                          | None => ⟪ h , k , s ⟫
                                          | Some v' => ⟨c , conv v', convE e, h, k, s⟩
                                          end.
@@ -281,44 +280,44 @@ Proof.
   ≤ {auto}
       match  m with
         | Some (Num m') => match n with
-                           | Some (Num n') => ⟨ c, Num' (m' + n'), convE e, h, k, s[r:=VAL (Num' m')] ⟩
-                           | _ => ⟪ h, k, s[r:=VAL (Num' m')] ⟫
+                           | Some (Num n') => ⟨ c, Num' (m' + n'), convE e, h, k, s[r:=VAL m'] ⟩
+                           | _ => ⟪ h, k, s[r:=VAL m'] ⟫
                            end
         | _ => ⟪ h, k, s ⟫
       end.
   <== { apply vm_add }
       match  m with
       | Some (Num m') => match n with
-                         | Some (Num n') => ⟨ADD r c, Num' n', convE e, h, k, s[r:=VAL (Num' m')] ⟩
-                         | _ => ⟪ h, k, s[r:=VAL (Num' m')] ⟫
+                         | Some (Num n') => ⟨ADD r c, Num' n', convE e, h, k, s[r:=VAL m'] ⟩
+                         | _ => ⟪ h, k, s[r:=VAL m'] ⟫
                          end
         | _ => ⟪ h, k, s ⟫
       end.
   <== { apply vm_add_fail }
       match  m with
       | Some (Num m') => match n with
-                         | Some v => ⟨ADD r c, conv v, convE e, h, k, s[r:=VAL (Num' m')] ⟩
-                         | None => ⟪ h, k, s[r:=VAL (Num' m')] ⟫
+                         | Some v => ⟨ADD r c, conv v, convE e, h, k, s[r:=VAL m'] ⟩
+                         | None => ⟪ h, k, s[r:=VAL m'] ⟫
                          end
       | _ => ⟪ h, k, s ⟫
       end.
   <|= { apply IHE2 }
       match  m with
-      | Some (Num m') => ⟨comp' y (next r) (ADD r c), Num' m', convE e, h, k, s[r:=VAL (Num' m')] ⟩
+      | Some (Num m') => ⟨comp y (next r) (ADD r c), Num' m', convE e, h, k, s[r:=VAL m'] ⟩
       | _ => ⟪ h, k, s ⟫
       end.
   <== { apply vm_store }
       match  m with
-      | Some (Num m') => ⟨STORE r (comp' y (next r) (ADD r c)), Num' m', convE e, h, k, s ⟩
+      | Some (Num m') => ⟨STORE r (comp y (next r) (ADD r c)), Num' m', convE e, h, k, s ⟩
       | _ => ⟪ h, k, s ⟫
       end.
   <== { apply vm_store_fail }
       match  m with
-      | Some v => ⟨STORE r (comp' y (next r) (ADD r c)), conv v, convE e, h, k, s ⟩
+      | Some v => ⟨STORE r (comp y (next r) (ADD r c)), conv v, convE e, h, k, s ⟩
       | _ => ⟪ h, k, s ⟫
       end.
   <|= { apply IHE1 }
-      ⟨comp' x r (STORE r (comp' y (next r) (ADD r c))), a, convE e, h, k, s⟩.
+      ⟨comp x r (STORE r (comp y (next r) (ADD r c))), a, convE e, h, k, s⟩.
   [].
 
   (** - [Throw ⇓[e] None] *)
@@ -341,32 +340,32 @@ Proof.
     <|= {apply IHE2}
       match m with
             | Some v'' => ⟨ c, conv v'', convE e, h, k, s ⟩
-            | None => ⟨ comp' y r c, Num' 0, convE e, h, k, s ⟩
+            | None => ⟨ comp y r c, Num' 0, convE e, h, k, s ⟩
       end.
     ≤ {eauto}
       match m with
             | Some v'' => ⟨ c, conv v'', convE e, h, k, s ⟩
-            | None => ⟨ comp' y r c, Num' 0, convE e, h, k, s[r:= HAN (comp' y r c) (convE e) h] ⟩
+            | None => ⟨ comp y r c, Num' 0, convE e, h, k, s[r:= HAN (comp y r c) (convE e) h] ⟩
       end.
     <== {apply vm_fail}
       match m with
             | Some v'' => ⟨ c, conv v'', convE e, h, k, s ⟩
-            | None => ⟪ Some r, MARKED :: k, s[r:= HAN (comp' y r c) (convE e) h] ⟫
+            | None => ⟪ Some r, MARKED :: k, s[r:= HAN (comp y r c) (convE e) h] ⟫
       end.
     ≤ {eauto}
       match m with
-            | Some v'' => ⟨ c, conv v'', convE e, h, k, s[r:= HAN (comp' y r c) (convE e) h] ⟩
-            | None => ⟪ Some r, MARKED :: k, s[r:= HAN (comp' y r c) (convE e) h] ⟫
+            | Some v'' => ⟨ c, conv v'', convE e, h, k, s[r:= HAN (comp y r c) (convE e) h] ⟩
+            | None => ⟪ Some r, MARKED :: k, s[r:= HAN (comp y r c) (convE e) h] ⟫
       end.
     <== {eapply vm_unmark}
       match m with
-            | Some v'' => ⟨ UNMARK c, conv v'', convE e, Some r, MARKED :: k, s[r:= HAN (comp' y r c) (convE e) h] ⟩
-            | None => ⟪ Some r, MARKED :: k, s[r:= HAN (comp' y r c) (convE e) h] ⟫
+            | Some v'' => ⟨ UNMARK c, conv v'', convE e, Some r, MARKED :: k, s[r:= HAN (comp y r c) (convE e) h] ⟩
+            | None => ⟪ Some r, MARKED :: k, s[r:= HAN (comp y r c) (convE e) h] ⟫
       end.
     <|= {apply IHE1}
-        ⟨ comp' x (next r) (UNMARK c), a, convE e, Some r, MARKED :: k, s[r:= HAN (comp' y r c) (convE e) h] ⟩.
+        ⟨ comp x (next r) (UNMARK c), a, convE e, Some r, MARKED :: k, s[r:= HAN (comp y r c) (convE e) h] ⟩.
     <== {apply vm_mark}
-        ⟨ MARK r (comp' y r c) (comp' x (next r) (UNMARK c)), a, convE e, h, k, s ⟩.
+        ⟨ MARK r (comp y r c) (comp x (next r) (UNMARK c)), a, convE e, h, k, s ⟩.
     [].
     
 
@@ -390,9 +389,9 @@ Proof.
 (** - [Abs x ⇓[e] Clo x e] *)
 
   begin
-    ⟨c, Clo' (comp' x (next adr0) RET) (convE e), convE e, h, k, s ⟩.
-  <== { apply vm_fun }
-    ⟨FUN (comp' x (next adr0) RET) c, a, convE e, h, k, s ⟩.
+    ⟨c, Clo' (comp x (next first) RET) (convE e), convE e, h, k, s ⟩.
+  <== { apply vm_abs }
+    ⟨ABS (comp x (next first) RET) c, a, convE e, h, k, s ⟩.
   [].
 
 (** - [App x y ⇓[e] x''] *)
@@ -404,28 +403,28 @@ Proof.
     end.
   <== { apply vm_ret }
       match x'' with
-      | Some v' => ⟨RET, conv v', convE (y' :: e'), h, MEM s :: k, empty[adr0:=CLO c (convE e)]⟩
+      | Some v' => ⟨RET, conv v', convE (y' :: e'), h, MEM s :: k, empty[first:=CLO c (convE e)]⟩
       | None => ⟪ h, k, s ⟫
       end.
   <== { apply vm_fail_pop }
       match x'' with
-      | Some v' => ⟨RET, conv v', convE (y' :: e'), h, MEM s :: k, empty[adr0:=CLO c (convE e)]⟩
-      | None => ⟪ h, MEM s :: k, empty[adr0:=CLO c (convE e)] ⟫
+      | Some v' => ⟨RET, conv v', convE (y' :: e'), h, MEM s :: k, empty[first:=CLO c (convE e)]⟩
+      | None => ⟪ h, MEM s :: k, empty[first:=CLO c (convE e)] ⟫
       end.
   <|= {apply IHE3}
-      ⟨comp' x' (next adr0) RET, Num' 0, convE (y' :: e'), h, MEM s :: k, empty[adr0:=CLO c (convE e)]⟩.
+      ⟨comp x' (next first) RET, Num' 0, convE (y' :: e'), h, MEM s :: k, empty[first:=CLO c (convE e)]⟩.
   = {auto}
-      ⟨comp' x' (next adr0) RET, Num' 0, conv y' :: convE e', h, MEM s:: k, empty[adr0:=CLO c (convE e)]⟩.
-  <== {apply_eq vm_call;try rewrite truncate_set}
-      ⟨CALL r c, conv y', convE e, h, k, s[r:=VAL (Clo' (comp' x' (next adr0) RET) (convE e'))]⟩.
+      ⟨comp x' (next first) RET, Num' 0, conv y' :: convE e', h, MEM s:: k, empty[first:=CLO c (convE e)]⟩.
+  <== {apply_eq vm_app;try rewrite truncate_set}
+      ⟨APP r c, conv y', convE e, h, k, s[r:=CLO (comp x' (next first) RET) (convE e')]⟩.
   <|= {apply IHE2}
-      ⟨comp' y (next r) (CALL r c), (Clo' (comp' x' (next adr0) RET) (convE e')), convE e, h, k, s[r:=VAL (Clo' (comp' x' (next adr0) RET) (convE e'))]⟩.
-  <== { apply vm_cstore }
-    ⟨CSTORE r (comp' y (next r) (CALL r c)), (Clo' (comp' x' (next adr0) RET) (convE e')), convE e, h, k, s⟩.
+      ⟨comp y (next r) (APP r c), (Clo' (comp x' (next first) RET) (convE e')), convE e, h, k, s[r:=CLO (comp x' (next first) RET) (convE e')]⟩.
+  <== { apply vm_stc }
+    ⟨STC r (comp y (next r) (APP r c)), (Clo' (comp x' (next first) RET) (convE e')), convE e, h, k, s⟩.
   = {auto}
-    ⟨CSTORE r (comp' y (next r) (CALL r c)), conv (Clo x' e'), convE e, h, k, s ⟩.
+    ⟨STC r (comp y (next r) (APP r c)), conv (Clo x' e'), convE e, h, k, s ⟩.
   <|= { apply IHE1 }
-    ⟨comp' x r (CSTORE r (comp' y (next r) (CALL r c))), a, convE e, h, k, s ⟩.
+    ⟨comp x r (STC r (comp y (next r) (APP r c))), a, convE e, h, k, s ⟩.
   [].
 
   begin
@@ -433,7 +432,7 @@ Proof.
   = {auto}
   match x' with
   | Some (Clo x'' e') => match y' with 
-                         | Some v => ⟨ CALL r c, conv v, convE e, h, k, s[ r := VAL (conv (Clo x'' e'))] ⟩
+                         | Some v => ⟨ APP r c, conv v, convE e, h, k, s[ r := CLO (comp x'' (next first) RET) (map conv e')] ⟩
                          | None => ⟪h, k, s ⟫
                          end
   | _ => ⟪h, k, s ⟫
@@ -441,40 +440,40 @@ Proof.
   ≤ {auto}
   match x' with
   | Some (Clo x'' e') => match y' with 
-                         | Some v => ⟨ CALL r c, conv v, convE e, h, k, s[ r := VAL (conv (Clo x'' e'))] ⟩
-                         | None => ⟪h, k, s[ r := VAL (conv (Clo x'' e'))] ⟫
+                         | Some v => ⟨ APP r c, conv v, convE e, h, k, s[ r := CLO (comp x'' (next first) RET) (map conv e')] ⟩
+                         | None => ⟪h, k, s[ r := CLO (comp x'' (next first) RET) (map conv e')] ⟫
                          end
   | _ => ⟪h, k, s ⟫
   end.
   <|= {apply IHE2}
   match x' with
-  | Some (Clo x'' e') => ⟨comp' y (next r) (CALL r c), conv (Clo x'' e'), convE e, h, k, s[ r := VAL (conv (Clo x'' e'))] ⟩
+  | Some (Clo x'' e') => ⟨comp y (next r) (APP r c), conv (Clo x'' e'), convE e, h, k, s[ r := CLO (comp x'' (next first) RET) (map conv e')] ⟩
   | _ => ⟪h, k, s ⟫
   end.
-  = {auto}
+  = {reflexivity}
     match x' with
     | Some v => match v with
-                | Clo x'' e' => ⟨comp' y (next r) (CALL r c), conv (Clo x'' e'), convE e, h, k,
-                                 s[ r := VAL (conv (Clo x'' e'))] ⟩
+                | Clo x'' e' => ⟨comp y (next r) (APP r c), conv (Clo x'' e'), convE e, h, k,
+                                 s[ r := CLO (comp x'' (next first) RET) (map conv e')] ⟩
                 | _ => ⟪h, k, s ⟫
                 end
     | _ => ⟪h, k, s ⟫
     end.
-  <== {apply vm_cstore}
+  <== {apply vm_stc}
     match x' with
     | Some v => match v with
-                | Clo x'' e' => ⟨CSTORE r (comp' y (next r) (CALL r c)), conv (Clo x'' e'), convE e, h, k, s ⟩
+                | Clo x'' e' => ⟨STC r (comp y (next r) (APP r c)), conv (Clo x'' e'), convE e, h, k, s ⟩
                 | _ => ⟪h, k, s ⟫
                 end
     | _ => ⟪h, k, s ⟫
     end.
-  <== {apply vm_cstore_fail}
+  <== {apply vm_stc_fail}
     match x' with
-    | Some v => ⟨CSTORE r (comp' y (next r) (CALL r c)), conv v, convE e, h, k, s ⟩
+    | Some v => ⟨STC r (comp y (next r) (APP r c)), conv v, convE e, h, k, s ⟩
     | _ => ⟪h, k, s ⟫
     end.
   <|= {apply IHE1}
-      ⟨comp' x r (CSTORE r (comp' y (next r) (CALL r c))), a, convE e, h, k, s ⟩.
+      ⟨comp x r (STC r (comp y (next r) (APP r c))), a, convE e, h, k, s ⟩.
   [].
   
 Qed.
@@ -488,16 +487,16 @@ Qed.
 
 Definition terminates (p : Expr) : Prop := exists r, p ⇓[nil] Some r.
 
-Theorem sound p a s h C : freeFrom adr0 s -> terminates p -> ⟨comp p, a, nil, h, nil, s⟩ =>>! C -> 
+Theorem sound p a s h C : freeFrom first s -> terminates p -> ⟨compile p, a, nil, h, nil, s⟩ =>>! C -> 
                           exists v s', C = ⟨HALT , conv v, nil, h, nil, s'⟩ /\ p ⇓[nil] Some v.
 Proof.
   unfold terminates. intros F T M. destruct T as [v T].
-  pose (spec p (Some v) nil adr0 HALT a s nil h F T) as H'.
+  pose (spec p (Some v) nil first HALT a s nil h F T) as H'.
   unfold Reach in *. repeat autodestruct.
   pose (determ_trc determ_vm) as D.
   unfold determ in D. inversion H0.   inversion H5. subst.
   exists v. eexists. split. eapply D. apply M. split.
-  unfold comp.
+  unfold compile.
   simpl in *. apply H. intro Contra. destruct Contra.
   inversion H1. assumption.
 Qed.
@@ -515,23 +514,23 @@ eapply eval_throw.
 eapply eval_val.
 Qed.
 
-(* Compute (comp test1). *)
+(* Compute (compile test1). *)
 
-Example test1_vm h : exists s a, ⟨(comp (Catch (App (Abs (Throw)) (Val 2)) (Val 3))), a, nil, h, nil, empty⟩
+Example test1_vm h : exists s a, ⟨(compile (Catch (App (Abs (Throw)) (Val 2)) (Val 3))), a, nil, h, nil, empty⟩
                      =>> ⟨HALT, a, nil, h, nil, s⟩.
 Proof.
   eexists. eexists.
-  unfold comp. simpl.
+  unfold compile. simpl.
   eapply trc_step_trans'.
   eapply vm_mark.
   eapply trc_step_trans'.
-  eapply vm_fun.
+  eapply vm_abs.
   eapply trc_step_trans'.
-  eapply vm_cstore.
+  eapply vm_stc.
   eapply trc_step_trans'.
   eapply vm_load.
   eapply trc_step_trans'.
-  eapply vm_call.
+  eapply vm_app.
   rewrite get_set. reflexivity.
   eapply trc_step_trans'.
   eapply vm_throw.

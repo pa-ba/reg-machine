@@ -1,60 +1,121 @@
 Require Import Memory.
 Require Import ZArith.
 Require Import FunctionalExtensionality.
-Module LinearMemory <: Memory.
-Definition adr := nat.
-Definition adr0 := 0.
+
+
+Module LinearMemory <: TruncMem.
+
+Definition Reg := nat.
+Definition Mem (T : Type) := nat -> option T.
+
+Definition first := 0.
 Definition next := S.
-Definition empty_mem :=  fun T => (fun _ => None) : adr -> option T.
+Definition empty :=  fun T => (fun _ => None) : Mem T.
+Definition set {T} (r : Reg) (v : T) (m : Mem T) : Mem T :=
+  fun r' => if r' =? r then Some v else m r'.
+Definition get {T} (r : Reg) (m : Mem T) : option T := m r.
 
-Definition lta' := lta nat S.
 
-Lemma lta_le : forall (r r' : adr), lta' r r' -> r < r'.
+
+Definition freeFrom {T} (r : Reg) (m : Mem T) :=
+  forall r', r <= r' -> m r' = None.
+
+Definition memle {T} (m m' : Mem T) :=
+  forall r v, m r = Some v -> m' r = Some v.
+
+Notation "s ≤ t" := (memle s t) (at level 70) : memory_scope.
+Open Scope memory_scope.
+Notation "s ≥ t" := (t ≤ s) (at level 70) : memory_scope.
+
+(* Property 1 *)
+Lemma empty_mem_free: forall T, freeFrom first (empty T). 
 Proof.
-  intros r r' R. induction R; omega.
-Qed. 
+  unfold freeFrom, first, empty. intros. reflexivity.
+Qed.
+  
+(* Property 2 *)
 
-Lemma next_fresh : forall (r r' : adr), lta' r r' -> r <> r'.
+Lemma get_set : forall T (r : Reg) (v : T) (s :  Mem T),
+    get r (set r v s) = Some v.
 Proof.
-  intros r r' R. apply lta_le in R. omega.
-Qed. 
-
-Definition Mem T := adr -> option T.
-
-Definition get {T:Type} r (m : Mem T) := m r.
-Definition set {T:Type} r v (m : Mem T) r' :=
-  if r' =? r then Some v else m r'.
-
-Lemma get_set : forall T (r : adr) (v : T) (s :  Mem T), get r (set r v s) = Some v.
-Proof.
-  intros. unfold get, set. rewrite <- beq_nat_refl. reflexivity.
+  unfold set, get. intros. rewrite <- beq_nat_refl. reflexivity.
 Qed.
 
-Lemma get_get : forall T (r r' : adr) (v : T) (s :  Mem T), r <> r' -> get r (set r' v s) = get r s.
-Proof.
-  intros. unfold get, set. rewrite <- Nat.eqb_neq in H. rewrite H. reflexivity.
-Qed. 
+(* Property 3 *)
 
-Lemma set_set : forall T (r : adr) (v v' : T) (s :  Mem T),
+Lemma memle_set : forall {T} (s : Mem T) r v, freeFrom r s -> s ≤ set r v s.
+Proof.
+  unfold freeFrom, set, memle. intros.
+  remember (r0 =? r) as R. symmetry in HeqR. destruct R. apply beq_nat_true in HeqR. subst.
+  rewrite H in H0;auto. inversion H0. assumption.
+Qed.
+  
+(* Property 4 *)
+
+Lemma freeFrom_set : forall {T} r (v : T) s, freeFrom r s ->  freeFrom (next r) (set r v s).
+Proof.
+  unfold freeFrom, next, set. intros.
+  remember (r' =? r) as R. symmetry in HeqR. destruct R. apply beq_nat_true in HeqR. subst. omega.
+  apply H. omega.
+Qed.
+
+(* Property 5 *)
+
+Lemma memle_refl : forall {T} (s : Mem T), s ≤ s.
+Proof.
+  unfold memle. intros. assumption.
+Qed.
+
+Lemma memle_trans : forall {T} (s t u : Mem T), s ≤ t -> t ≤ u -> s ≤ u.
+Proof.
+  unfold memle. intros. eauto.
+Qed.
+
+(* Property 6 *)
+
+Lemma set_monotone : forall {T} (s t : Mem T) r v, s ≤ t -> set r v s ≤ set r v t .
+Proof.
+  unfold set, memle. intros. destruct (r0 =? r); eauto.
+Qed.
+  
+
+(* Property 7 *)
+
+Lemma memle_get : forall {T} (s t : Mem T) r v, s ≤ t -> get r s = Some v -> get r t = Some v.
+Proof.
+  unfold get, memle. intros. auto.
+Qed.
+
+
+(* Additional axiom *)
+
+Lemma set_set : forall T (r : Reg) (v v' : T) (s :  Mem T),
     set r v (set r v' s) = set r v s.
 Proof.
-  intros. apply functional_extensionality. intro. unfold set.
-  destruct (x =? r); reflexivity.
+  unfold set. intros. apply functional_extensionality. intros.
+  destruct (x =? r); auto.
+Qed.
+
+(* truncation operation and axioms *)
+
+Definition truncate {T} (r : Reg) (m : Mem T) : Mem T :=
+  fun r' => if r <=? r' then None else m r'.
+
+Lemma truncate_monotone : forall {T} (s t : Mem T) r, s ≤ t -> truncate r s ≤ truncate r t.
+Proof.
+  unfold truncate, memle. intros.
+  destruct (r <=? r0);auto.
 Qed.
   
-Lemma set_get : forall T (r : adr) (v : T) (s :  Mem T),
-    get r s = Some v -> set r v  s = s.
+Lemma truncate_set : forall {T} (s : Mem T) v r , freeFrom r s -> truncate r (set r v s) = s.
 Proof.
-  intros. apply functional_extensionality. intro. unfold get, set.
-  remember (x =? r) as b. destruct b. symmetry in Heqb. apply beq_nat_true in Heqb.
-  subst. auto. auto.
-Qed. 
+  unfold freeFrom, truncate, set. intros.
+  apply functional_extensionality. intros.
+  remember (r <=? x) as R. symmetry in HeqR. destruct R. apply leb_complete in HeqR.
+  symmetry. auto. apply leb_complete_conv in HeqR.
+  remember (x =? r) as R'. symmetry in HeqR'. destruct R'. apply beq_nat_true in HeqR'. subst. omega. reflexivity.
+Qed.
 
-Lemma empty_fresh : forall r {T}, ~ exists v, get r (empty_mem T) = Some v.
-Proof.
-  intros. intro Contra. destruct Contra. compute in H. inversion H.
-Qed. 
-
-Definition dec_eq := Nat.eq_dec.
-  
 End LinearMemory.
+
+

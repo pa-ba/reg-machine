@@ -134,9 +134,9 @@ Qed.
 
 Hint Resolve Reach_refl.
 
-Lemma Reach_eq C1 C2 : C1 = C2 -> C1 =|> C1.
+Lemma Reach_eq C1 C2 : C1 = C2 -> C1 =|> C2.
 Proof.
-  auto.
+  intros. subst. auto.
 Qed.
 
 

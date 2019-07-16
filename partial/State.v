@@ -1,4 +1,5 @@
-(** Calculation of the simple arithmetic language. *)
+(** Calculation of the simple arithmetic language with exceptions and
+(global) state. *)
 
 Require Import List.
 Require Import Tactics.
@@ -46,16 +47,16 @@ Fixpoint eval (x: Expr) (q : state) : option nat * state :=
 
 Inductive Code : Set :=
 | LOAD : nat -> Code -> Code
-| ADD : adr -> Code -> Code
-| STORE : adr -> Code -> Code
+| ADD : Reg -> Code -> Code
+| STORE : Reg -> Code -> Code
 | THROW : Code
 | UNMARK : Code -> Code
-| MARK : adr -> Code -> Code -> Code
+| MARK : Reg -> Code -> Code -> Code
 | READ : Code -> Code
 | WRITE : Code -> Code
 | HALT : Code.
 
-Fixpoint comp' (x : Expr) (r : adr) (c : Code) : Code :=
+Fixpoint comp' (x : Expr) (r : Reg) (c : Code) : Code :=
   match x with
   | Val n => LOAD n c
   | Add e1 e2 => comp' e1 r (STORE r (comp' e2 (next r) (ADD r c)))
@@ -65,13 +66,13 @@ Fixpoint comp' (x : Expr) (r : adr) (c : Code) : Code :=
   | Put x y => comp' x r (WRITE (comp' y r c))
   end.
 
-Definition comp (x : Expr) : Code := comp' x adr0 HALT.
+Definition comp (x : Expr) : Code := comp' x first HALT.
 
-Definition Han := option adr.
+Definition Han := option Reg.
 
-Inductive Elem : Set :=
-| NUM : nat -> Elem
-| HAN : Code -> Han -> Elem.
+Inductive RVal : Set :=
+| VAL : nat -> RVal
+| HAN : Code -> Han -> RVal.
 
 (** * Virtual Machine *)
 
@@ -79,7 +80,7 @@ Inductive Conf' : Type :=
 | conf : Code -> nat -> Han -> state -> Conf'
 | fail : Han -> state -> Conf'.
 
-Definition Conf : Type := Conf' * Mem Elem.
+Definition Conf : Type := Conf' * Mem RVal.
 
 
 Notation "⟨ x , y , z , q , s ⟩" := (conf x y z q, s).
@@ -88,8 +89,8 @@ Notation "⟪ x , q , s ⟫" := (fail x q, s).
 Reserved Notation "x ==> y" (at level 80, no associativity).
 Inductive VM : Conf -> Conf -> Prop :=
 | vm_load n a c s q p : ⟨LOAD n c, a , p, q, s⟩ ==> ⟨c , n, p, q, s⟩ 
-| vm_add c s a r n q p : s[r]=  NUM n -> ⟨ADD r c, a , p, q, s⟩ ==> ⟨c , n + a, p, q, s⟩
-| vm_store c s a r q p : ⟨STORE r c, a, p, q, s⟩ ==> ⟨c , a, p, q, s[r:=NUM a]⟩
+| vm_add c s a r n q p : s[r]=  VAL n -> ⟨ADD r c, a , p, q, s⟩ ==> ⟨c , n + a, p, q, s⟩
+| vm_store c s a r q p : ⟨STORE r c, a, p, q, s⟩ ==> ⟨c , a, p, q, s[r:=VAL a]⟩
 | vm_throw a s q p : ⟨THROW, a, p, q, s⟩ ==> ⟪p, q, s⟫
 | vm_fail p p' s q c : s[p] = HAN c p' -> ⟪ Some p, q, s⟫ ==> ⟨c, 0, p', q, s⟩
 | vm_unmark p p' s a q c c' : s[p] = HAN c' p' ->
@@ -112,7 +113,6 @@ Module VM <: Machine.
 Definition Conf := Conf.
 Definition Pre := cle.
 Definition Rel := VM.
-Definition MemElem := nat.
 Lemma monotone : monotonicity cle VM.
 prove_monotonicity. Qed.
 Lemma preorder : is_preorder cle.
@@ -125,7 +125,7 @@ Import VMCalc.
 
 (** Specification of the compiler *)
 
-Theorem spec e r c a p s q :
+Theorem spec : forall e r c a p s q,
   freeFrom r s ->
   ⟨comp' e r c, a, p, q, s⟩
     =|>
@@ -138,13 +138,6 @@ Theorem spec e r c a p s q :
 (** Setup the induction proof *)
 
 Proof.
-  intros.
-  generalize dependent c.
-  generalize dependent s.
-  generalize dependent r.
-  generalize dependent a.
-  generalize dependent p.
-  generalize dependent q.
   induction e;intros.
 
 (** Calculation of the compiler *)
@@ -180,22 +173,22 @@ Proof.
   ≤ { auto }
     match eval e1 q with
     | (Some n, q') => match eval e2 q' with
-                      | (Some n', q'') => ⟨c , n + n' ,p, q'', s[r:=NUM n]⟩
-                      | (None, q'') => ⟪p, q'', s[r:=NUM n]⟫
+                      | (Some n', q'') => ⟨c , n + n' ,p, q'', s[r:=VAL n]⟩
+                      | (None, q'') => ⟪p, q'', s[r:=VAL n]⟫
                       end
     | (None, q') => ⟪p, q', s⟫
     end.
   <== { apply vm_add }
       match eval e1 q with
       | (Some n, q') => match eval e2 q' with
-                        | (Some n', q'') => ⟨ADD r c , n' ,p, q'', s[r:=NUM n]⟩
-                        | (None, q'') => ⟪p, q'', s[r:=NUM n]⟫
+                        | (Some n', q'') => ⟨ADD r c , n' ,p, q'', s[r:=VAL n]⟩
+                        | (None, q'') => ⟪p, q'', s[r:=VAL n]⟫
                         end
       | (None, q') => ⟪p, q', s⟫
       end.
   <|= {apply IHe2}
       match eval e1 q with
-      | (Some n, q') => ⟨comp' e2 (next r) (ADD r c) , n ,p, q', s[r:=NUM n]⟩
+      | (Some n, q') => ⟨comp' e2 (next r) (ADD r c) , n ,p, q', s[r:=VAL n]⟩
       | (None, q') => ⟪p, q', s⟫
       end.
   <== { apply vm_store }
@@ -321,11 +314,11 @@ Qed.
 
 
 Theorem sound x a p q q' s n C :
-  freeFrom adr0 s -> eval x q = (Some n, q')
+  freeFrom first s -> eval x q = (Some n, q')
   -> ⟨comp x, a, p, q, s⟩ =>>! C -> exists s', C = ⟨HALT, n,p, q', s'⟩.
 Proof.
   intros F E M.
-  pose (spec x adr0 HALT a p s q F). unfold Reach in *. repeat autodestruct.
+  pose (spec x first HALT a p s q F). unfold Reach in *. repeat autodestruct.
   pose (determ_trc determ_vm) as D.
   unfold determ in D. inversion H0. subst. eexists. eapply D. apply M.
   rewrite E in *.

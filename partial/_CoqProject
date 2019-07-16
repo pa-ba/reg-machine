@@ -1,16 +1,20 @@
 -R . Comp
 Memory.v
+LinearMemory.v
 Machine.v
 Tactics.v
+ListIndex.v
+
 Arith.v
-ExceptionPointer.v
-ExceptionCode.v
+Exception.v
+Lambda.v
+
+ExceptionPartial.v
 ExceptionTwo.v
 State.v
 LocalState.v
-ListIndex.v
-LambdaBad.v
 LambdaTruncate.v
-LambdaStack.v
+LambdaBad.v
 LambdaException.v
-LinearMemory.v
+While.v
+WhileCoalesced.v

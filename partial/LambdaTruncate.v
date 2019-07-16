@@ -59,24 +59,24 @@ where "x ⇓[ e ] y" := (eval x e y).
 
 Inductive Code : Set :=
 | LOAD : nat -> Code -> Code
-| ADD : adr -> Code -> Code
-| STORE : adr -> Code -> Code
+| ADD : Reg -> Code -> Code
+| STORE : Reg -> Code -> Code
 | LOOKUP : nat -> Code -> Code
 | RET : Code
-| CALL : adr -> Code -> Code
+| CALL : Reg -> Code -> Code
 | FUN : Code -> Code -> Code
 | HALT : Code.
 
-Fixpoint comp' (e : Expr) (r : adr) (c : Code) : Code :=
+Fixpoint comp' (e : Expr) (r : Reg) (c : Code) : Code :=
   match e with
     | Val n => LOAD n c
     | Add x y => comp' x r (STORE r (comp' y (next r) (ADD r c)))
     | Var i => LOOKUP i c
     | App x y => comp' x r (STORE r (comp' y (next r) (CALL r c)))
-    | Abs x => FUN (comp' x (next adr0) RET) c
+    | Abs x => FUN (comp' x (next first) RET) c
   end.
 
-Definition comp (e : Expr) : Code := comp' e adr0 HALT.
+Definition comp (e : Expr) : Code := comp' e first HALT.
 
 (** * Virtual Machine *)
 
@@ -86,17 +86,18 @@ Inductive Value' : Set :=
 
 Definition Env' := list Value'.
 
-Inductive Elem : Set :=
-| VAL : Value' -> Elem 
-| CLO : Code -> Env' -> Elem
+Inductive RVal : Set :=
+| VAL : Value' -> RVal 
+| CLO : Code -> Env' -> RVal
 .
 
-Notation empty := (empty_mem Elem).
+Definition empty := (@empty RVal).
 
-Definition Stack : Type := list (Mem Elem).
+
+Definition Lam : Type := list (Mem RVal).
 
 Inductive Conf : Type := 
-| conf : Code -> Value' -> Env' -> Stack -> Mem Elem -> Conf.
+| conf : Code -> Value' -> Env' -> Lam -> Mem RVal -> Conf.
 
 Notation "⟨ c , a , e , k , s ⟩" := (conf c a e k s).
 
@@ -108,10 +109,10 @@ Inductive VM : Conf -> Conf -> Prop :=
  | vm_store c v r s e k : ⟨STORE r c, v, e, k, s⟩
                         ==> ⟨c, v, e, k, s[r:=VAL v]⟩
  | vm_lookup e i c v a s k : nth e i = Some v -> ⟨LOOKUP i c, a, e, k, s⟩ ==> ⟨c, v, e, k, s⟩
- | vm_ret a c e e' s s' k : s[adr0] = CLO c e -> ⟨RET, a, e', s' :: k, s⟩ ==> ⟨c, a, e, k, s'⟩
+ | vm_ret a c e e' s s' k : s[first] = CLO c e -> ⟨RET, a, e', s' :: k, s⟩ ==> ⟨c, a, e, k, s'⟩
  | vm_call c c' e e' v r s k :
      s[r]=VAL (Clo' c' e') ->
-     ⟨CALL r c, v, e, k,s⟩ ==> ⟨c', Num' 0, v :: e', truncate r s :: k, empty[adr0:=CLO c e]⟩
+     ⟨CALL r c, v, e, k,s⟩ ==> ⟨c', Num' 0, v :: e', truncate r s :: k, empty[first:=CLO c e]⟩
  | vm_fun a c c' s e k : ⟨FUN c' c, a, e, k, s⟩ ==> ⟨c, Clo' c' e, e, k, s⟩
 where "x ==> y" := (VM x y).
 
@@ -120,12 +121,12 @@ where "x ==> y" := (VM x y).
 Fixpoint conv (v : Value) : Value' :=
   match v with
     | Num n => Num' n
-    | Clo x e => Clo' (comp' x (next adr0) RET) (map conv e)
+    | Clo x e => Clo' (comp' x (next first) RET) (map conv e)
   end.
 
 Definition convE : Env -> Env' := map conv.
 
-Inductive stackle : Stack -> Stack -> Prop :=
+Inductive stackle : Lam -> Lam -> Prop :=
 | stackle_empty : stackle nil nil
 | stackle_cons s s' k k' : s ≤ s' -> stackle k k' -> stackle (s :: k) (s' :: k').
 
@@ -167,7 +168,6 @@ Module VM <: Machine.
 Definition Conf := Conf.
 Definition Pre := cle.
 Definition Rel := VM.
-Definition MemElem := nat.
 Lemma monotone : monotonicity cle VM.
   prove_monotonicity1;
     try (match goal with [H : stackle (_ :: _) _ |- _] => inversion H end)
@@ -237,9 +237,9 @@ Proof.
 (** - [Abs x ⇓[e] Clo x e] *)
 
   begin
-    ⟨c, Clo' (comp' x (next adr0) RET) (convE e), convE e, k, s ⟩.
+    ⟨c, Clo' (comp' x (next first) RET) (convE e), convE e, k, s ⟩.
   <== { apply vm_fun }
-    ⟨FUN (comp' x (next adr0) RET) c, a, convE e, k, s ⟩.
+    ⟨FUN (comp' x (next first) RET) c, a, convE e, k, s ⟩.
   [].
 
 (** - [App x y ⇓[e] x''] *)
@@ -247,17 +247,17 @@ Proof.
   begin
     ⟨c, conv x'', convE e, k, s ⟩.
   <== { apply vm_ret }
-      ⟨RET, conv x'', convE (y' :: e'), s :: k, empty[adr0:=CLO c (convE e)]⟩.
+      ⟨RET, conv x'', convE (y' :: e'), s :: k, empty[first:=CLO c (convE e)]⟩.
   <|= {apply  IHE3}
-      ⟨comp' x' (next adr0) RET, Num' 0, convE (y' :: e'), s :: k, empty[adr0:=CLO c (convE e)]⟩.
+      ⟨comp' x' (next first) RET, Num' 0, convE (y' :: e'), s :: k, empty[first:=CLO c (convE e)]⟩.
   = {auto}
-      ⟨comp' x' (next adr0) RET, Num' 0, conv y' :: convE e', s::k, empty[adr0:=CLO c (convE e)]⟩.
+      ⟨comp' x' (next first) RET, Num' 0, conv y' :: convE e', s::k, empty[first:=CLO c (convE e)]⟩.
   <== {apply_eq vm_call;try rewrite truncate_set}
-      ⟨CALL r c, conv y', convE e, k, s[r:=VAL (Clo' (comp' x' (next adr0) RET) (convE e'))]⟩.
+      ⟨CALL r c, conv y', convE e, k, s[r:=VAL (Clo' (comp' x' (next first) RET) (convE e'))]⟩.
   <|= {apply IHE2}
-      ⟨comp' y (next r) (CALL r c), (Clo' (comp' x' (next adr0) RET) (convE e')), convE e, k, s[r:=VAL (Clo' (comp' x' (next adr0) RET) (convE e'))]⟩.
+      ⟨comp' y (next r) (CALL r c), (Clo' (comp' x' (next first) RET) (convE e')), convE e, k, s[r:=VAL (Clo' (comp' x' (next first) RET) (convE e'))]⟩.
   <== { apply vm_store }
-    ⟨STORE r (comp' y (next r) (CALL r c)), (Clo' (comp' x' (next adr0) RET) (convE e')), convE e, k, s⟩.
+    ⟨STORE r (comp' y (next r) (CALL r c)), (Clo' (comp' x' (next first) RET) (convE e')), convE e, k, s⟩.
   = {auto}
     ⟨STORE r (comp' y (next r) (CALL r c)), conv (Clo x' e'), convE e, k, s ⟩.
   <|= { apply IHE1 }
@@ -274,11 +274,11 @@ Qed.
 
 Definition terminates (p : Expr) : Prop := exists r, p ⇓[nil] r.
 
-Theorem sound p a s C : freeFrom adr0 s -> terminates p -> ⟨comp p, a, nil, nil, s⟩ =>>! C -> 
+Theorem sound p a s C : freeFrom first s -> terminates p -> ⟨comp p, a, nil, nil, s⟩ =>>! C -> 
                           exists v s', C = ⟨HALT , conv v, nil, nil, s'⟩ /\ p ⇓[nil] v.
 Proof.
   unfold terminates. intros F T M. destruct T as [v T].
-  pose (spec p v nil adr0 HALT a s nil F T) as H'.
+  pose (spec p v nil first HALT a s nil F T) as H'.
   unfold Reach in *. repeat autodestruct.
   pose (determ_trc determ_vm) as D.
   unfold determ in D. inversion H0.  inversion H7.  subst. exists v. eexists. split. eapply D. apply M. split.

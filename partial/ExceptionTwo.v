@@ -38,14 +38,14 @@ Fixpoint eval (x: Expr) : option nat :=
 
 Inductive Code : Set :=
 | LOAD : nat -> Code -> Code
-| ADD : adr -> Code -> Code
-| STORE : adr -> Code -> Code
+| ADD : Reg -> Code -> Code
+| STORE : Reg -> Code -> Code
 | THROW : Code
 | UNMARK : Code -> Code
-| MARK : adr -> Code -> Code -> Code
+| MARK : Reg -> Code -> Code -> Code
 | HALT : Code.
 
-Fixpoint comp' (x : Expr) (r : adr) (c : Code) (f : Code) : Code :=
+Fixpoint comp' (x : Expr) (r : Reg) (c : Code) (f : Code) : Code :=
   match x with
   | Val n => LOAD n c
   | Add e1 e2 => comp' e1 r (STORE r (comp' e2 (next r) (ADD r c) f)) f
@@ -53,18 +53,18 @@ Fixpoint comp' (x : Expr) (r : adr) (c : Code) (f : Code) : Code :=
   | Catch e1 e2 => comp' e1 r c (comp' e2  r c f)
   end.
 
-Definition comp (x : Expr) : Code := comp' x adr0 HALT HALT.
+Definition comp (x : Expr) : Code := comp' x first HALT HALT.
 
 
-Inductive Elem : Set :=
-| NUM : nat -> Elem.
+Inductive RVal : Set :=
+| VAL : nat -> RVal.
 
 (** * Virtual Machine *)
 
 Inductive Conf' : Type :=
 | conf : Code -> nat -> Conf'.
 
-Definition Conf : Type := Conf' * Mem Elem.
+Definition Conf : Type := Conf' * Mem RVal.
 
 Notation "⟨ x , y , s ⟩" := (conf x y, s).
 
@@ -72,8 +72,8 @@ Notation "⟨ x , y , s ⟩" := (conf x y, s).
 Reserved Notation "x ==> y" (at level 80, no associativity).
 Inductive VM : Conf -> Conf -> Prop :=
 | vm_load n a c s : ⟨LOAD n c, a , s⟩ ==> ⟨c , n, s⟩ 
-| vm_add c s a r n : s[r]=  NUM n -> ⟨ADD r c, a , s⟩ ==> ⟨c , n + a, s⟩
-| vm_store c s a r : ⟨STORE r c, a, s⟩ ==> ⟨c , a, s[r:=NUM a]⟩
+| vm_add c s a r n : s[r]=  VAL n -> ⟨ADD r c, a , s⟩ ==> ⟨c , n + a, s⟩
+| vm_store c s a r : ⟨STORE r c, a, s⟩ ==> ⟨c , a, s[r:=VAL a]⟩
 where "x ==> y" := (VM x y).
 
 Inductive cle : Conf -> Conf -> Prop :=
@@ -90,7 +90,6 @@ Module VM <: Machine.
 Definition Conf := Conf.
 Definition Pre := cle.
 Definition Rel := VM.
-Definition MemElem := nat.
 Lemma monotone : monotonicity cle VM.
 prove_monotonicity. Qed.
 Lemma preorder : is_preorder cle.
@@ -103,7 +102,7 @@ Import VMCalc.
 
 (** Specification of the compiler *)
 
-Theorem spec e r c a f s :
+Theorem spec : forall  e r c a f s,
   freeFrom r s ->
   ⟨comp' e r c f, a, s⟩
     =|>
@@ -116,12 +115,6 @@ Theorem spec e r c a f s :
 (** Setup the induction proof *)
 
 Proof.
-  intros.
-  generalize dependent c.
-  generalize dependent s.
-  generalize dependent r.
-  generalize dependent a.
-  generalize dependent f.
   induction e;intros.
 
 (** Calculation of the compiler *)
@@ -157,7 +150,7 @@ Proof.
   ≤ { auto }
     match eval e1 with
     | Some n => match eval e2 with
-                | Some n' => ⟨c , n + n' ,s[r:=NUM n]⟩
+                | Some n' => ⟨c , n + n' ,s[r:=VAL n]⟩
                 | None => ⟨f , 0 ,s⟩
                 end
     | None => ⟨f , 0 ,s⟩
@@ -165,7 +158,7 @@ Proof.
   <== { apply vm_add }
       match eval e1 with
       | Some n => match eval e2 with
-                  | Some n' => ⟨ADD r c , n', s[r:=NUM n]⟩
+                  | Some n' => ⟨ADD r c , n', s[r:=VAL n]⟩
                   | None => ⟨f , 0 ,s⟩
                   end
       | None => ⟨f , 0 ,s⟩
@@ -173,14 +166,14 @@ Proof.
   ≤ { auto }
     match eval e1 with
     | Some n => match eval e2 with
-                | Some n' => ⟨ADD r c , n', s[r:=NUM n]⟩
-                | None => ⟨f , 0 ,s[r:=NUM n]⟩
+                | Some n' => ⟨ADD r c , n', s[r:=VAL n]⟩
+                | None => ⟨f , 0 ,s[r:=VAL n]⟩
                 end
     | None => ⟨f , 0 ,s⟩
     end.
   <|= { apply IHe2 }
       match eval e1 with
-      | Some n => ⟨comp' e2 (next r) (ADD r c) f , n, s[r:=NUM n]⟩
+      | Some n => ⟨comp' e2 (next r) (ADD r c) f , n, s[r:=VAL n]⟩
       | None => ⟨f , 0 ,s⟩
       end.
   <== { apply vm_store }
@@ -245,10 +238,10 @@ Lemma determ_vm : determ VM.
 Qed.
 
 
-Theorem sound x a s n C : freeFrom adr0 s -> eval x = Some n -> ⟨comp x, a, s⟩ =>>! C -> exists s', C = ⟨HALT, n,s'⟩.
+Theorem sound x a s n C : freeFrom first s -> eval x = Some n -> ⟨comp x, a, s⟩ =>>! C -> exists s', C = ⟨HALT, n,s'⟩.
 Proof.
   intros F E M.
-  pose (spec x adr0 HALT a HALT s F). unfold Reach in *. repeat autodestruct.
+  pose (spec x first HALT a HALT s F). unfold Reach in *. repeat autodestruct.
   pose (determ_trc determ_vm) as D.
   unfold determ in D. inversion H0. subst. eexists. eapply D. apply M.
   rewrite E in *.

@@ -5,7 +5,7 @@ Require Import List.
 Require Import ListIndex.
 Require Import Tactics.
 Require Import Coq.Program.Equality.
-Module Lambda (Import mem : EmptyMem).
+Module Lambda (Import mem : Memory).
 
 
 (** * Syntax *)
@@ -58,25 +58,26 @@ where "x ⇓[ e ] y" := (eval x e y).
 (** * Compiler *)
 
 Inductive Code : Set :=
+| HALT : Code
 | LOAD : nat -> Code -> Code
-| ADD : adr -> Code -> Code
-| STORE : adr -> Code -> Code
 | LOOKUP : nat -> Code -> Code
+| STORE : Reg -> Code -> Code
+| ADD : Reg -> Code -> Code
+| STC : Reg -> Code -> Code                         
 | RET : Code
-| CALL : adr -> Code -> Code
-| FUN : Code -> Code -> Code
-| HALT : Code.
+| APP : Reg -> Code -> Code
+| FUN : Code -> Code -> Code.
 
-Fixpoint comp' (e : Expr) (r : adr) (c : Code) : Code :=
+Fixpoint comp (e : Expr) (r : Reg) (c : Code) : Code :=
   match e with
     | Val n => LOAD n c
-    | Add x y => comp' x r (STORE r (comp' y (next r) (ADD r c)))
+    | Add x y => comp x r (STORE r (comp y (next r) (ADD r c)))
     | Var i => LOOKUP i c
-    | App x y => comp' x r (STORE r (comp' y (next r) (CALL r c)))
-    | Abs x => FUN (comp' x (next adr0) RET) c
+    | App x y => comp x r (STC r (comp y (next r) (APP r c)))
+    | Abs x => FUN (comp x (next first) RET) c
   end.
 
-Definition comp (e : Expr) : Code := comp' e adr0 HALT.
+Definition compile (e : Expr) : Code := comp e first HALT.
 
 (** * Virtual Machine *)
 
@@ -86,32 +87,34 @@ Inductive Value' : Set :=
 
 Definition Env' := list Value'.
 
-Inductive Elem : Set :=
-| VAL : Value' -> Elem 
-| CLO : Code -> Env' -> Elem
-.
+Inductive RVal : Set :=
+| VAL : nat -> RVal
+| CLO : Code -> Env' -> RVal.
 
-Notation empty := (empty_mem Elem).
+Definition empty := (@empty RVal).
 
-Definition Stack : Type := list (Mem Elem).
+
+Definition Lam : Type := list (Mem RVal).
 
 Inductive Conf : Type := 
-| conf : Code -> Value' -> Env' -> Stack -> Mem Elem -> Conf.
+| conf : Code -> Value' -> Env' -> Lam -> Mem RVal -> Conf.
 
 Notation "⟨ c , a , e , k , s ⟩" := (conf c a e k s).
 
 Reserved Notation "x ==> y" (at level 80, no associativity).
 Inductive VM : Conf -> Conf -> Prop :=
  | vm_load n c s a e k :  ⟨LOAD n c, a, e, k, s⟩ ==> ⟨c, Num' n, e, k, s⟩
- | vm_add c m n r s e k : s[r] = VAL (Num' m) -> ⟨ADD r c, Num' n, e, k, s⟩
+ | vm_add c m n r s e k : s[r] = VAL m -> ⟨ADD r c, Num' n, e, k, s⟩
                                                  ==> ⟨c, Num'(m + n), e, k, s⟩
- | vm_store c v r s e k : ⟨STORE r c, v, e, k, s⟩
-                        ==> ⟨c, v, e, k, s[r:=VAL v]⟩
+ | vm_store c n r s e k : ⟨STORE r c, Num' n, e, k, s⟩
+                            ==> ⟨c, Num' n, e, k, s[r:=VAL n]⟩
+ | vm_stc c c' e' r s e k : ⟨STC r c, Clo' c' e', e, k, s⟩
+                        ==> ⟨c, Clo' c' e', e, k, s[r:=CLO c' e']⟩                            
  | vm_lookup e i c v a s k : nth e i = Some v -> ⟨LOOKUP i c, a, e, k, s⟩ ==> ⟨c, v, e, k, s⟩
- | vm_ret a c e e' s s' k : s[adr0] = CLO c e -> ⟨RET, a, e', s' :: k, s⟩ ==> ⟨c, a, e, k, s'⟩
+ | vm_ret a c e e' s s' k : s[first] = CLO c e -> ⟨RET, a, e', s' :: k, s⟩ ==> ⟨c, a, e, k, s'⟩
  | vm_call c c' e e' v r s k :
-     s[r]=VAL (Clo' c' e') ->
-     ⟨CALL r c, v, e, k,s⟩ ==> ⟨c', Num' 0, v :: e', s :: k, empty[adr0:=CLO c e]⟩
+     s[r]=CLO c' e' ->
+     ⟨APP r c, v, e, k,s⟩ ==> ⟨c', v, v :: e', s :: k, empty[first:=CLO c e]⟩
  | vm_fun a c c' s e k : ⟨FUN c' c, a, e, k, s⟩ ==> ⟨c, Clo' c' e, e, k, s⟩
 where "x ==> y" := (VM x y).
 
@@ -120,12 +123,12 @@ where "x ==> y" := (VM x y).
 Fixpoint conv (v : Value) : Value' :=
   match v with
     | Num n => Num' n
-    | Clo x e => Clo' (comp' x (next adr0) RET) (map conv e)
+    | Clo x e => Clo' (comp x (next first) RET) (map conv e)
   end.
 
 Definition convE : Env -> Env' := map conv.
 
-Inductive stackle : Stack -> Stack -> Prop :=
+Inductive stackle : Lam -> Lam -> Prop :=
 | stackle_empty : stackle nil nil
 | stackle_cons s s' k k' : s ≤ s' -> stackle k k' -> stackle (s :: k) (s' :: k').
 
@@ -156,8 +159,6 @@ Lemma rel_eq' {T} {R : T -> T -> Prop} x x' y : R x' y -> x = x' -> R x y.
 Proof. intros. subst. auto.
 Qed .
 
-Ltac apply_eq t := eapply rel_eq; [apply t | repeat rewrite set_set; auto].
-
 
 (** * Calculation *)
 
@@ -167,7 +168,6 @@ Module VM <: Machine.
 Definition Conf := Conf.
 Definition Pre := cle.
 Definition Rel := VM.
-Definition MemElem := nat.
 Lemma monotone : monotonicity cle VM.
   prove_monotonicity1;
     try (match goal with [H : stackle (_ :: _) _ |- _] => inversion H end)
@@ -187,7 +187,7 @@ Import VMCalc.
 
 Theorem spec p v e r c a s k :
   freeFrom r s ->  p ⇓[e] v ->
-  ⟨comp' p r c, a, convE e, k, s⟩ =|> ⟨c , conv v, convE e, k, s⟩.
+  ⟨comp p r c, a, convE e, k, s⟩ =|> ⟨c , conv v, convE e, k, s⟩.
 
 (** Setup the induction proof *)
 
@@ -215,15 +215,15 @@ Proof.
   begin
     ⟨c, Num' (m + n), convE e, k, s⟩.
   ≤ {auto}
-    ⟨c, Num' (m + n), convE e, k, s[r:=VAL (Num' m)]⟩ .
+    ⟨c, Num' (m + n), convE e, k, s[r:=VAL m]⟩ .
   <== { apply vm_add }
-    ⟨ADD r c, Num' n, convE e, k, s[r:=VAL (Num' m)]⟩ .
+    ⟨ADD r c, Num' n, convE e, k, s[r:=VAL m]⟩ .
   <|= { apply IHE2 }
-      ⟨comp' y (next r) (ADD r c), Num' m, convE e, k, s[r:=VAL (Num' m)]⟩ .
+      ⟨comp y (next r) (ADD r c), Num' m, convE e, k, s[r:=VAL m]⟩ .
   <== { apply vm_store }
-      ⟨STORE r (comp' y (next r) (ADD r c)), Num' m, convE e, k, s⟩.
+      ⟨STORE r (comp y (next r) (ADD r c)), Num' m, convE e, k, s⟩.
   <|= { apply IHE1 }
-      ⟨comp' x r (STORE r (comp' y (next r) (ADD r c))), a, convE e, k, s⟩.
+      ⟨comp x r (STORE r (comp y (next r) (ADD r c))), a, convE e, k, s⟩.
   [].
 
 (** - [Var i ⇓[e] v] *)
@@ -237,9 +237,9 @@ Proof.
 (** - [Abs x ⇓[e] Clo x e] *)
 
   begin
-    ⟨c, Clo' (comp' x (next adr0) RET) (convE e), convE e, k, s ⟩.
+    ⟨c, Clo' (comp x (next first) RET) (convE e), convE e, k, s ⟩.
   <== { apply vm_fun }
-    ⟨FUN (comp' x (next adr0) RET) c, a, convE e, k, s ⟩.
+    ⟨FUN (comp x (next first) RET) c, a, convE e, k, s ⟩.
   [].
 
 (** - [App x y ⇓[e] x''] *)
@@ -247,26 +247,41 @@ Proof.
   begin
     ⟨c, conv x'', convE e, k, s ⟩.
   <== { apply vm_ret }
-      ⟨RET, conv x'', convE (y' :: e'), s :: k, empty[adr0:=CLO c (convE e)]⟩.
+      ⟨RET, conv x'', convE (y' :: e'), s :: k, empty[first:=CLO c (convE e)]⟩.
   <|= {apply  IHE3}
-      ⟨comp' x' (next adr0) RET, Num' 0, convE (y' :: e'), s :: k, empty[adr0:=CLO c (convE e)]⟩.
+      ⟨comp x' (next first) RET, conv y', convE (y' :: e'), s :: k, empty[first:=CLO c (convE e)]⟩.
   = {auto}
-      ⟨comp' x' (next adr0) RET, Num' 0, conv y' :: convE e', s::k, empty[adr0:=CLO c (convE e)]⟩.
+      ⟨comp x' (next first) RET, conv y', conv y' :: convE e', s::k, empty[first:=CLO c (convE e)]⟩.
   ≤ {auto with memory}
-      ⟨comp' x' (next adr0) RET, Num' 0, conv y' :: convE e', s[r:=VAL (Clo' (comp' x' (next adr0) RET) (convE e'))]::k, empty[adr0:=CLO c (convE e)]⟩.
-  <== {apply_eq vm_call}
-      ⟨CALL r c, conv y', convE e, k, s[r:=VAL (Clo' (comp' x' (next adr0) RET) (convE e'))]⟩.
+      ⟨comp x' (next first) RET, conv y', conv y' :: convE e', s[r:=CLO (comp x' (next first) RET) (convE e')]::k, empty[first:=CLO c (convE e)]⟩.
+  <== {apply vm_call}
+      ⟨APP r c, conv y', convE e, k, s[r:=CLO (comp x' (next first) RET) (convE e')]⟩.
   <|= {apply IHE2}
-      ⟨comp' y (next r) (CALL r c), (Clo' (comp' x' (next adr0) RET) (convE e')), convE e, k, s[r:=VAL (Clo' (comp' x' (next adr0) RET) (convE e'))]⟩.
-  <== { apply vm_store }
-    ⟨STORE r (comp' y (next r) (CALL r c)), (Clo' (comp' x' (next adr0) RET) (convE e')), convE e, k, s⟩.
+      ⟨comp y (next r) (APP r c), (Clo' (comp x' (next first) RET) (convE e')), convE e, k, s[r:=CLO (comp x' (next first) RET) (convE e')]⟩.
+  <== { apply vm_stc }
+    ⟨STC r (comp y (next r) (APP r c)), (Clo' (comp x' (next first) RET) (convE e')), convE e, k, s⟩.
   = {auto}
-    ⟨STORE r (comp' y (next r) (CALL r c)), conv (Clo x' e'), convE e, k, s ⟩.
+    ⟨STC r (comp y (next r) (APP r c)), conv (Clo x' e'), convE e, k, s ⟩.
   <|= { apply IHE1 }
-    ⟨comp' x r (STORE r (comp' y (next r) (CALL r c))), a, convE e,k, s ⟩.
+    ⟨comp x r (STC r (comp y (next r) (APP r c))), a, convE e,k, s ⟩.
   [].
 Qed.
-  
+
+
+(** Specification of the whole compiler *)
+
+Theorem spec' x a (e : Env) k v : x ⇓[e] v ->
+                                ⟨compile x, a, convE e, k, empty⟩  =|> ⟨HALT , conv v , convE e, k, empty⟩.
+Proof.
+  intros E.
+  begin
+    ⟨HALT , conv v , convE e, k, empty⟩.
+  <|= {apply spec; auto using empty_mem_free}
+      ⟨comp x first HALT, a, convE e, k, empty⟩.
+  [].
+Qed.
+
+
 (** * Soundness *)
 
 Lemma determ_vm : determ VM.
@@ -276,11 +291,11 @@ Qed.
 
 Definition terminates (p : Expr) : Prop := exists r, p ⇓[nil] r.
 
-Theorem sound p a s C : freeFrom adr0 s -> terminates p -> ⟨comp p, a, nil, nil, s⟩ =>>! C -> 
-                          exists v s', C = ⟨HALT , conv v, nil, nil, s'⟩ /\ p ⇓[nil] v.
+Theorem sound p a C : terminates p -> ⟨compile p, a, nil, nil, empty⟩ =>>! C -> 
+                          exists v s, C = ⟨HALT , conv v, nil, nil, s⟩ /\ p ⇓[nil] v.
 Proof.
-  unfold terminates. intros F T M. destruct T as [v T].
-  pose (spec p v nil adr0 HALT a s nil F T) as H'.
+  unfold terminates. intros T M. destruct T as [v T].
+  pose (spec' p a nil nil v T) as H'.
   unfold Reach in *. repeat autodestruct.
   pose (determ_trc determ_vm) as D.
   unfold determ in D. inversion H0.  inversion H7.  subst. exists v. eexists. split. eapply D. apply M. split.
