@@ -1,8 +1,8 @@
 # Calculating compilers for register machines
 
-This repository contains Coq formalisation of compiler calculations
-for register machines and the full Haskell sources of the calculated
-compilers.
+This repository contains a Coq formalisation of compiler calculations
+for register machines along with the full Haskell source code of the
+calculated compilers.
 
 ## Coq formalisation
 
@@ -10,15 +10,15 @@ The Coq formalisation is located in the [coq](coq) subfolder. Below we
 list the relevant Coq files for the calculations:
 
  - [Arith.v](coq/Arith.v): arithmetic expressions 
- - [Exceptions.v](coq/Exceptions.v): arithmetic expressions + exceptions
- - [StateGlobal.v](coq/StateGlobal.v): global state
- - [StateLocal.v](coq/StateLocal.v): local state
+ - [Exception.v](coq/Exception.v): arithmetic expressions + exceptions
+ - [State.v](coq/State.v): global state
+ - [LocalState.v](coq/LocalState.v): local state
  - [LambdaBad.v](coq/LambdaBad.v): call-by-value lambda calculus without a
    stack which yields an unsatisfactory compiler and machine
- - [LambdaStack.v](coq/LambdaStack.v): call-by-value lambda calculus with
+ - [Lambda.v](coq/Lambda.v): call-by-value lambda calculus with
    a stack which yields a much more realistic compiler and machine
  - [LambdaTruncate.v](coq/LambdaTruncate.v): variant of
-   [LambdaStack.v](coq/LambdaStack.v) is more realistic as it only copies
+   [Lambda.v](coq/Lambda.v) is more realistic as it only copies
    a bounded set of registers to the stack (via truncation)
  - [LambdaException.v](coq/LambdaException.v): lambda calculus +
    exceptions, based on [LambdaTruncate.v](coq/LambdaTruncate.v)
@@ -30,7 +30,8 @@ reasoning in calculation style and to provide auxiliary concepts:
  - [Machine.v](coq/Machine.v): auxiliary definitions and tactics for
     virtual machines 
  - [Memory.v](coq/Memory.v): the (axiomatic) memory model
- - [LinearMemory.v](coq/LinearMemory.v): instantiation of the memory model
+ - [LinearMemory.v](coq/LinearMemory.v): instantiation of the memory
+   model (thus proving its consistency)
  - [ListIndex.v](coq/ListIndex.v): definitions to index elements in a list
 
 ## Haskell code
