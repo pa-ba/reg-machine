@@ -1,6 +1,0 @@
--Q . "" Arith.v
--Q . "" Exception.v
--Q . "" Machine.v
--Q . "" Memory.v
--Q . "" LinearMemory.v
--Q . "" Tactics.v 
