@@ -73,11 +73,11 @@ Machine model:
 >
 > type Reg = Int
 >
-> data Val = VAL Int | CLO Code Env'
+> data Val = NUM Int | CLO Code Env'
 >            deriving Show
 >
 > empty :: Mem
-> empty = \n -> VAL 0
+> empty = \n -> NUM 0
 >
 > set :: Reg -> Val -> Mem -> Mem
 > set r v m = \r' -> if r == r' then v else get r' m
@@ -110,9 +110,9 @@ Virtual machine:
 > exec HALT         (a,e,l,m)          = (a,e,l,m)
 > exec (LOAD n c)   (a,e,l,m)          = exec c (Num' n,e,l,m)
 > exec (LOOKUP i c) (a,e,l,m)          = exec c (e !! i,e,l,m)
-> exec (STORE r c)  (Num' n,e,l,m)     = exec c (Num' n,e,l,set r (VAL n) m)
+> exec (STORE r c)  (Num' n,e,l,m)     = exec c (Num' n,e,l,set r (NUM n) m)
 > exec (ADD r c)    (Num' a,e,l,m)     = exec c (Num' (n+a),e,l,m)
->                                        where VAL n = get r m
+>                                        where NUM n = get r m
 > exec (STC r c)    (Clo' c' e',e,l,m) = exec c (Clo' c' e',e,l,set r (CLO c' e') m)
 > exec (APP r c)    (a,e,l,m)          = exec c' (a,a:e',m:l,set first (CLO c e) empty)
 >                                        where CLO c' e' = get r m
