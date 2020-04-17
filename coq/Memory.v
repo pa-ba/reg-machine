@@ -20,6 +20,7 @@ Parameter freeFrom : forall {T}, Reg -> Mem T -> Prop.
 Parameter memle : forall {T}, Mem T -> Mem T -> Prop.
 
 (* Notations *)
+Declare Scope memory_scope.
 Notation "m ⊑ m'" := (memle m m') (at level 70) : memory_scope.
 Open Scope memory_scope.
 Notation "m ⊒ m'" := (m' ⊑ m) (at level 70) : memory_scope.

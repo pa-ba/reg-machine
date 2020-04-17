@@ -105,7 +105,7 @@ where "x ==> y" := (VM x y).
 Inductive cle : Conf -> Conf -> Prop :=
  | cle_mem  c a e s s' : s ⊑ s' -> cle ⟨ c , a , e , s ⟩ ⟨ c , a , e , s' ⟩.
 
-Hint Constructors cle.
+Hint Constructors cle : core.
 
 Lemma nat_neq n m : false = (n =? m) -> n <> m.
 Proof.
@@ -117,7 +117,7 @@ Proof.
   intro H. symmetry in H. rewrite <- PeanoNat.Nat.eqb_eq. assumption.
 Qed .
 
-Hint Resolve nat_eq nat_neq.
+Hint Resolve nat_eq nat_neq : core.
 
 (** * Calculation *)
 
@@ -280,7 +280,7 @@ Inductive eval' : Expr -> State -> Value -> State -> Prop :=
     ⟪While x y, q⟫ ⇓' ⟪0,q'⟫
 where "⟪ x , q ⟫ ⇓' ⟪ y , q' ⟫" := (eval' x q y q').
 
-Hint Constructors eval eval'.
+Hint Constructors eval eval' : core.
 
 Theorem sem_eq x q y q' : ⟪ x , q ⟫ ⇓' ⟪ y , q' ⟫ <->  ⟪ x , q ⟫ ⇓ ⟪ y , q' ⟫.
 Proof.

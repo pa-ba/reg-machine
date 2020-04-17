@@ -148,12 +148,12 @@ Proof.
   eauto with memory.
 Qed.
 
-Hint Resolve stackle_refl stackle_trans.
+Hint Resolve stackle_refl stackle_trans : core.
 
 Inductive cle : Conf -> Conf -> Prop :=
  | cle_mem  c a e s s' m m' : stackle s s' -> m ⊑ m' -> cle ⟨ c , a , e , s, m ⟩ ⟨ c , a , e , s', m' ⟩.
 
-Hint Constructors cle.
+Hint Constructors cle : core.
 
 Lemma rel_eq {T} {R : T -> T -> Prop} x y y' : R x y' -> y = y' -> R x y.
 Proof. intros. subst. auto.

@@ -23,6 +23,8 @@ Definition freeFrom {T} (r : Reg) (m : Mem T) :=
 Definition memle {T} (m m' : Mem T) :=
   forall r v, m r = Some v -> m' r = Some v.
 
+Declare Scope memory_scope.
+
 Notation "s ⊑ t" := (memle s t) (at level 70) : memory_scope.
 Open Scope memory_scope.
 Notation "s ⊒ t" := (t ⊑ s) (at level 70) : memory_scope.

@@ -193,12 +193,12 @@ Proof.
   intros L1. generalize k3. induction L1; intros k3' L2; solve[assumption| inversion L2; subst; constructor; eauto with memory].
 Qed.
 
-Hint Resolve stackle_refl stackle_trans.
+Hint Resolve stackle_refl stackle_trans : core.
 
 Inductive cle : Conf -> Conf -> Prop :=
  | cle_mem  f k k' s s' : stackle k k' -> s ⊑ s' -> cle (f, k, s)  (f , k', s' ).
 
-Hint Constructors cle.
+Hint Constructors cle : core.
 
 Lemma rel_eq {T} {R : T -> T -> Prop} x y y' : R x y' -> y = y' -> R x y.
 Proof. intros. subst. auto.

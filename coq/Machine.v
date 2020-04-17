@@ -52,7 +52,7 @@ Module MetaTheory (machine : Machine).
 Export machine.
 Import ListNotations.
 
-
+Declare Scope machine_scope.
 Infix "==>" := Rel(at level 80, no associativity) : machine_scope.
 
 Definition trc := clos_refl_trans Conf Rel.
@@ -77,8 +77,8 @@ Lemma trc_trans c1 c2 c3 : c1 =>> c2 -> c2 =>> c3 -> c1 =>> c3.
 Proof. apply rt_trans. Qed.
 
 
-Hint Resolve trc_step trc_step_trans.
-Hint Immediate trc_refl.
+Hint Resolve trc_step trc_step_trans : core.
+Hint Immediate trc_refl : core.
 
 Lemma trc_ind' :
 forall P : Conf -> Conf -> Prop,
@@ -102,7 +102,7 @@ Proof.
   intros. pose preorder as P. unfold is_preorder in *. destruct P. eauto.
 Qed.
 
-Hint Resolve cle_refl.
+Hint Resolve cle_refl : core.
 
 Lemma monotone_step (C1 C1' C2 : Conf) :
   C1 ⊑ C1' ->
@@ -132,7 +132,7 @@ Proof.
   exists C. split; auto.
 Qed.
 
-Hint Resolve Reach_refl.
+Hint Resolve Reach_refl : core.
 
 Lemma Reach_eq C1 C2 : C1 = C2 -> C1 =|> C2.
 Proof.

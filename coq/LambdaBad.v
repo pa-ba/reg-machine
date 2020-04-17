@@ -123,7 +123,7 @@ Definition convE : Env -> Env' := map conv.
 Inductive cle : Conf -> Conf -> Prop :=
  | cle_mem  c a e s s' : s ⊑ s' -> cle ⟨ c , a , e , s ⟩ ⟨ c , a , e , s' ⟩.
 
-Hint Constructors cle.
+Hint Constructors cle : core.
 
 
 (** * Calculation *)

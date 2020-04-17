@@ -57,7 +57,7 @@ where "x ==> y" := (VM x y).
 Inductive cle : Conf -> Conf -> Prop :=
   cle_mem x y z z' : z ⊑ z' -> cle ⟨ x , y , z ⟩ ⟨ x , y , z' ⟩.
 
-Hint Constructors cle.
+Hint Constructors cle : core.
 
 
 (** * Calculation *)
