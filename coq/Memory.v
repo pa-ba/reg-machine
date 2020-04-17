@@ -20,11 +20,11 @@ Parameter freeFrom : forall {T}, Reg -> Mem T -> Prop.
 Parameter memle : forall {T}, Mem T -> Mem T -> Prop.
 
 (* Notations *)
-Notation "s ⊑ t" := (memle s t) (at level 70) : memory_scope.
+Notation "m ⊑ m'" := (memle m m') (at level 70) : memory_scope.
 Open Scope memory_scope.
-Notation "s ⊒ t" := (t ⊑ s) (at level 70) : memory_scope.
-Notation "s [ r ] = v" := (get r s = Some v) (at level 70).
-Notation "s [ r := v ]" := (set r v s) (at level 70).
+Notation "m ⊒ m'" := (m' ⊑ m) (at level 70) : memory_scope.
+Notation "m [ r ] = v" := (get r m = Some v) (at level 70).
+Notation "m [ r := v ]" := (set r v m) (at level 70).
 
 
 (* Property 1 *)
@@ -32,29 +32,29 @@ Axiom empty_mem_free : forall T, freeFrom first (@empty T).
 
 (* Property 2 *)
 
-Axiom get_set : forall T (r : Reg) (v : T) (s :  Mem T),
-    get r (set r v s) = Some v.
+Axiom get_set : forall T (r : Reg) (v : T) (m :  Mem T),
+    get r (set r v m) = Some v.
 
 (* Property 3 *)
 
-Axiom memle_set : forall {T} (s : Mem T) r v, freeFrom r s -> s ⊑ set r v s.
+Axiom memle_set : forall {T} (m : Mem T) r v, freeFrom r m -> m ⊑ set r v m.
 
 (* Property 4 *)
 
-Axiom freeFrom_set : forall {T} r (v : T) s, freeFrom r s ->  freeFrom (next r) (set r v s).
+Axiom freeFrom_set : forall {T} r (v : T) m, freeFrom r m ->  freeFrom (next r) (set r v m).
 
 (* Property 5 *)
 
-Axiom memle_refl : forall {T} (s : Mem T), s ⊑ s.
-Axiom memle_trans : forall {T} (s t u : Mem T), s ⊑ t -> t ⊑ u -> s ⊑ u.
+Axiom memle_refl : forall {T} (m : Mem T), m ⊑ m.
+Axiom memle_trans : forall {T} (m m' u : Mem T), m ⊑ m' -> m' ⊑ u -> m ⊑ u.
 
 (* Property 6 *)
 
-Axiom set_monotone : forall {T} (s t : Mem T) r v, s ⊑ t -> set r v s ⊑ set r v t .
+Axiom set_monotone : forall {T} (m m' : Mem T) r v, m ⊑ m' -> set r v m ⊑ set r v m' .
 
 (* Property 7 *)
 
-Axiom memle_get : forall {T} (s t : Mem T) r v, s ⊑ t -> get r s = Some v -> get r t = Some v.
+Axiom memle_get : forall {T} (m m' : Mem T) r v, m ⊑ m' -> get r m = Some v -> get r m' = Some v.
 
 
 Hint Resolve memle_set memle_get memle_refl set_monotone memle_trans freeFrom_set empty_mem_free : memory.
@@ -68,8 +68,8 @@ Qed.
 
 (* Additional axioms not used in the paper. *)
 Module Type MAxioms (Import mem: Memory).
-  Axiom set_set : forall T (r : Reg) (v v' : T) (s :  Mem T),
-    set r v (set r v' s) = set r v s.
+  Axiom set_set : forall T (r : Reg) (v v' : T) (m :  Mem T),
+    set r v (set r v' m) = set r v m.
   
   Ltac apply_eq t := eapply rel_eq; [apply t | repeat rewrite set_set; auto].
 End MAxioms.
@@ -81,8 +81,8 @@ modelling of stack frames. *)
 Module Type Truncate (Import mem:Memory).
 Parameter truncate : forall {T}, Reg -> Mem T -> Mem T.
 
-Axiom truncate_monotone : forall {T} (s t : Mem T) r, s ⊑ t -> truncate r s ⊑ truncate r t.
-Axiom truncate_set : forall {T} (s : Mem T) v r , freeFrom r s -> truncate r (set r v s) = s.
+Axiom truncate_monotone : forall {T} (m m' : Mem T) r, m ⊑ m' -> truncate r m ⊑ truncate r m'.
+Axiom truncate_set : forall {T} (m : Mem T) v r , freeFrom r m -> truncate r (set r v m) = m.
 
 Hint Resolve truncate_monotone truncate_set : memory.
 
