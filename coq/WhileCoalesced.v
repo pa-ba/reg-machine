@@ -1,5 +1,5 @@
 (** Calculation for a language with state and while loops using a
-semantics with coalesced semantics (one rule for each language
+semantics with coalesced rules (one rule for each language
 construct). *)
 
 Require Import List.

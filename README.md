@@ -21,8 +21,8 @@ specification of the memory model:
 
 We also include compiler calculations for additional languages:
    
- - [State.v](coq/State.v): global state
- - [LocalState.v](coq/LocalState.v): local state
+ - [State.v](coq/State.v): global state + exceptions
+ - [LocalState.v](coq/LocalState.v): local state + exceptions
  - [LambdaBad.v](coq/LambdaBad.v): call-by-value lambda calculus
    without a stack which yields an unsatisfactory compiler and machine
  - [LambdaTruncate.v](coq/LambdaTruncate.v): variant of
@@ -30,6 +30,15 @@ We also include compiler calculations for additional languages:
    a bounded set of registers to the stack (via truncation)
  - [LambdaException.v](coq/LambdaException.v): lambda calculus +
    exceptions, based on [LambdaTruncate.v](coq/LambdaTruncate.v)
+ - [While.v](coq/While.v): state + while loops
+ - [WhileCoalesced.v](coq/WhileCoalesced.v): Variant of [While.v](coq/While.v) with a
+   semantics better suited for calculation
+ - [ExceptionPartial.v](coq/ExceptionPartial.v): variant of
+   [Exception.v](coq/Exception.v) with an expclicit empty exception
+   handler (for unhandled exceptions)
+ - [ExceptionTwo.v](coq/ExceptionTwo.v): variant of
+   [Exception.v](coq/Exception.v) that compiles exceptions away by
+   using two code continuations
 
 The remaining files are used to define the Coq tactics to support
 reasoning in calculation style and to provide auxiliary concepts:
