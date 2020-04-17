@@ -11,8 +11,10 @@ not explicitly carried out in the paper.
 ## Coq formalisation
 
 The Coq formalisation is located in the [coq](coq) subfolder. Below we
-list the Coq files for the calculations from the paper:
+list the Coq files for the calculations from the paper and the
+specification of the memory model:
 
+ - [Memory.v](coq/Memory.v): the (axiomatic) memory model (Section 2)
  - [Arith.v](coq/Arith.v): arithmetic expressions (section 3)
  - [Exception.v](coq/Exception.v): arithmetic expressions + exceptions (section 4)
  - [Lambda.v](coq/Lambda.v): call-by-value lambda calculus (section 5)
@@ -32,7 +34,6 @@ We also include compiler calculations for additional languages:
 The remaining files are used to define the Coq tactics to support
 reasoning in calculation style and to provide auxiliary concepts:
 
- - [Memory.v](coq/Memory.v): the (axiomatic) memory model (Section 2)
  - [Tactics.v](coq/Tactics.v): tactics for calculation style proofs
  - [Machine.v](coq/Machine.v): auxiliary definitions and tactics for
     virtual machines 
