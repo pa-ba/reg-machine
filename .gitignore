@@ -2,3 +2,9 @@
 *.aux
 *.html
 *.css
+
+# Coq
+*.vo
+*.vok
+*.vos
+*.glob
