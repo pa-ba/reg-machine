@@ -1,6 +1,7 @@
 Require Import Memory.
 Require Import ZArith.
 Require Import FunctionalExtensionality.
+Require Import Lia.
 
 
 Module LinearMemory <: TruncMem.
@@ -57,8 +58,8 @@ Qed.
 Lemma freeFrom_set : forall {T} r (v : T) s, freeFrom r s ->  freeFrom (next r) (set r v s).
 Proof.
   unfold freeFrom, next, set. intros.
-  remember (r' =? r) as R. symmetry in HeqR. destruct R. apply beq_nat_true in HeqR. subst. omega.
-  apply H. omega.
+  remember (r' =? r) as R. symmetry in HeqR. destruct R. apply beq_nat_true in HeqR. subst. lia.
+  apply H. lia.
 Qed.
 
 (* Property 5 *)
@@ -115,9 +116,7 @@ Proof.
   apply functional_extensionality. intros.
   remember (r <=? x) as R. symmetry in HeqR. destruct R. apply leb_complete in HeqR.
   symmetry. auto. apply leb_complete_conv in HeqR.
-  remember (x =? r) as R'. symmetry in HeqR'. destruct R'. apply beq_nat_true in HeqR'. subst. omega. reflexivity.
+  remember (x =? r) as R'. symmetry in HeqR'. destruct R'. apply beq_nat_true in HeqR'. subst. lia. reflexivity.
 Qed.
 
 End LinearMemory.
-
-
